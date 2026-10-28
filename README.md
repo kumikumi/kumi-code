@@ -1,0 +1,48 @@
+# Kumi Code
+
+A barebones Claude Code frontend. TypeScript, Electron, React and Anthropic's Claude Agent SDK.
+`SPEC.md` is the source of truth for what the code does; this file is the short version.
+
+## Model
+
+- **Conversation**: one user and one agent, as in Claude Code. A conversation is a Claude Code
+  session: the SDK writes its transcript under `~/.claude/projects/`, the same place the `claude`
+  CLI does, and Kumi Code reads it back from there. Kumi Code keeps no copy of the messages.
+- **Agent**: Claude Code itself, run through the Agent SDK with Claude Code's own system prompt,
+  tools, skills, subagents, slash commands, plugins, MCP servers, hooks, permission rules,
+  `CLAUDE.md` files and auto-memory. User, project and local settings all load, so an agent
+  here behaves like `claude` in the same folder.
+- **Project**: the folder a conversation works in. "No project" gives the conversation a fresh,
+  empty folder of its own under Kumi Code's data directory, like Claude Code's desktop app does.
+- **Tabs and windows**: every tab is a conversation or a new tab page. Tabs reorder by dragging,
+  move between windows by dragging onto another window's tab strip, and tear off into a new
+  window by dragging them out. Windows and their tabs come back when the app restarts.
+- **New tab page**: past conversations (those started in Kumi Code, or every Claude Code session
+  on this machine with the toggle) and a new conversation in a recent project, a picked folder
+  or no project.
+
+## Rules
+
+- Subscriptions only. The agent authenticates with the Claude subscription login that Claude
+  Code keeps on this machine; Kumi Code never authenticates by itself and has no sign-in of its
+  own. When logged out, it shows the bundled CLI's `auth login` command to run in a terminal.
+  Every `CLAUDE*` and `ANTHROPIC_*` variable of the launching process except `CLAUDE_CONFIG_DIR`
+  is dropped from the agent's environment, so an inherited API key cannot switch billing.
+- Anthropic models only.
+- No fallbacks. If something fails, it errors immediately and visibly.
+- No backward compatibility while prototyping. A state file from another version is an error.
+
+## Run
+
+```bash
+bun install
+bun run dev
+```
+
+`bun run typecheck` checks the main-process and renderer projects; `bun run test` runs the unit
+tests; `bun run e2e` builds the app and drives it with Playwright (it opens real windows, sends
+a few short messages to Claude on your subscription, and never touches the real mouse).
+
+Kumi Code's own state (windows, tabs, recent projects, which conversations it started and their
+settings) lives in `~/Library/Application Support/Kumi Code/state.json`; project-less
+conversations get folders under `~/Library/Application Support/Kumi Code/scratch/`.

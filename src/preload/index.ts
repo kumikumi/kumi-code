@@ -1,0 +1,46 @@
+import { contextBridge, ipcRenderer } from 'electron'
+import { IPC } from '@shared/types'
+import type { ConversationMeta, DragHover, KumiApi, TranscriptItem, UsageWindow, WindowState } from '@shared/types'
+
+function on<T extends unknown[]>(channel: string, cb: (...args: T) => void): () => void {
+  const listener = (_e: Electron.IpcRendererEvent, ...args: unknown[]): void => cb(...(args as T))
+  ipcRenderer.on(channel, listener)
+  return () => ipcRenderer.removeListener(channel, listener)
+}
+
+const api: KumiApi = {
+  getWindowState: () => ipcRenderer.invoke(IPC.getWindowState),
+  newTab: () => ipcRenderer.invoke(IPC.newTab),
+  closeTab: (tabId) => ipcRenderer.invoke(IPC.closeTab, tabId),
+  activateTab: (tabId) => ipcRenderer.invoke(IPC.activateTab, tabId),
+  moveTab: (tabId, index) => ipcRenderer.invoke(IPC.moveTab, tabId, index),
+  startConversation: (tabId, cwd) => ipcRenderer.invoke(IPC.startConversation, tabId, cwd),
+  openConversation: (tabId, conversationId) => ipcRenderer.invoke(IPC.openConversation, tabId, conversationId),
+  reportTabStrip: (geometry) => ipcRenderer.send(IPC.reportTabStrip, geometry),
+  dragStart: (tabId, grabX, grabY) => ipcRenderer.send(IPC.dragStart, tabId, grabX, grabY),
+  dragMove: () => ipcRenderer.send(IPC.dragMove),
+  dragEnd: () => ipcRenderer.send(IPC.dragEnd),
+  getAuthStatus: () => ipcRenderer.invoke(IPC.getAuthStatus),
+  getUsage: () => ipcRenderer.invoke(IPC.getUsage),
+  pickFolder: () => ipcRenderer.invoke(IPC.pickFolder),
+  listConversations: (all) => ipcRenderer.invoke(IPC.listConversations, all),
+  listRecentProjects: () => ipcRenderer.invoke(IPC.listRecentProjects),
+  renameConversation: (id, title) => ipcRenderer.invoke(IPC.renameConversation, id, title),
+  deleteConversation: (id) => ipcRenderer.invoke(IPC.deleteConversation, id),
+  getConversation: (id) => ipcRenderer.invoke(IPC.getConversation, id),
+  send: (id, text, images) => ipcRenderer.invoke(IPC.send, id, text, images),
+  interrupt: (id) => ipcRenderer.invoke(IPC.interrupt, id),
+  respond: (id, requestId, response) => ipcRenderer.invoke(IPC.respond, id, requestId, response),
+  setModel: (id, model) => ipcRenderer.invoke(IPC.setModel, id, model),
+  setEffort: (id, effort) => ipcRenderer.invoke(IPC.setEffort, id, effort),
+  setPermissionMode: (id, mode) => ipcRenderer.invoke(IPC.setPermissionMode, id, mode),
+  setDraft: (id, draft) => ipcRenderer.send(IPC.setDraft, id, draft),
+  onWindowState: (cb) => on<[WindowState]>(IPC.evWindowState, cb),
+  onConversationMeta: (cb) => on<[string, ConversationMeta, number]>(IPC.evConversationMeta, cb),
+  onConversationItems: (cb) => on<[string, TranscriptItem[], number]>(IPC.evConversationItems, cb),
+  onUsage: (cb) => on<[UsageWindow]>(IPC.evUsage, cb),
+  onDragHover: (cb) => on<[DragHover | null]>(IPC.evDragHover, cb),
+  onConversationsChanged: (cb) => on<[]>(IPC.evConversationsChanged, cb),
+}
+
+contextBridge.exposeInMainWorld('kumi', api)

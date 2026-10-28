@@ -1,0 +1,26 @@
+// Starts a project-less conversation and sends a message; checks commands load and tabs reorder.
+import { check, launch, newUserData, shots, waitForReply } from './launch.mjs'
+
+const { app, page } = await launch(newUserData())
+await page.getByText('No project', { exact: true }).click()
+await page.waitForSelector('.composer textarea')
+await page.waitForFunction(() => document.querySelectorAll('.composer-bar select')[1]?.querySelectorAll('option').length > 1, null, { timeout: 30000 })
+check(true, 'model list loaded')
+await page.locator('.composer textarea').fill('/comp')
+await page.waitForTimeout(300)
+check((await page.locator('.suggestions li').allInnerTexts()).some((t) => t.startsWith('/compact')), 'slash command completion offers /compact')
+await page.locator('.composer textarea').fill('Reply with just the word OK')
+await page.keyboard.press('Enter')
+await waitForReply(page, 1)
+const reply = (await page.locator('.transcript .item.text').allInnerTexts()).at(-1) ?? ''
+check(reply.includes('OK'), `Claude replies (${JSON.stringify(reply.slice(0, 40))})`)
+check(/\d+% context/.test(await page.locator('.composer-bar').innerText()), 'the context meter shows')
+check((await page.locator('.tab .tab-title').first().innerText()) !== 'New conversation', 'the tab gets a title')
+await page.screenshot({ path: `${shots}/conversation.png` })
+await page.evaluate(() => window.kumi.newTab())
+const state = await page.evaluate(() => window.kumi.getWindowState())
+await page.evaluate((id) => window.kumi.moveTab(id, 0), state.tabs[1].id)
+const after = await page.evaluate(() => window.kumi.getWindowState())
+check(after.tabs[0].id === state.tabs[1].id, 'moveTab reorders')
+console.log(`screenshots: ${shots}`)
+await app.close()
