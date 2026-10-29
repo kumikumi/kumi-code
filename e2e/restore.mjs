@@ -1,11 +1,10 @@
 // Windows and tabs come back after a restart; a reopened conversation shows its transcript.
-import { check, deleteConversations, launch, newUserData, shots, waitForReply } from './launch.mjs'
+import { check, deleteConversations, launch, MODEL, newUserData, replyModels, shots, startConversation, waitForReply } from './launch.mjs'
 
 const userData = newUserData()
 let { app, page } = await launch(userData)
 await page.waitForSelector('.project')
-await page.getByText('No project', { exact: true }).click()
-await page.waitForSelector('.composer textarea')
+const id = await startConversation(page)
 await page.locator('.composer textarea').fill('Remember the number 4711. Reply with just OK.')
 await page.keyboard.press('Enter')
 await waitForReply(page, 1)
@@ -17,7 +16,10 @@ await app.close()
 ;({ app, page } = await launch(userData))
 await page.waitForTimeout(1500)
 const after = await page.evaluate(() => window.kumi.getWindowState())
-check(JSON.stringify(after.tabs.map((t) => [t.title, t.id === after.activeTabId])) === JSON.stringify(before.tabs.map((t) => [t.title, t.id === before.activeTabId])), 'tabs and the active tab come back after a restart')
+// Which conversation is in which tab, and which tab is active. (Titles can change
+// meanwhile: Claude Code names a conversation after its first reply.)
+const layout = (state) => JSON.stringify(state.tabs.map((t) => [t.conversationId, t.id === state.activeTabId]))
+check(layout(after) === layout(before), 'tabs and the active tab come back after a restart')
 await page.evaluate((id) => window.kumi.activateTab(id), after.tabs[0].id)
 await page.waitForTimeout(2500)
 check((await page.locator('.transcript').innerText()).includes('Remember the number 4711'), 'the restored conversation shows its transcript')
@@ -26,6 +28,8 @@ await page.keyboard.press('Enter')
 await waitForReply(page, 2)
 const texts = await page.locator('.transcript .item.text').allInnerTexts()
 check((texts.at(-1) ?? '').includes('4711'), 'a follow-up after the restart resumes the same Claude session')
+const models = replyModels(id)
+check(models.length > 0 && models.every((m) => m.includes(MODEL)), `the conversation keeps its model across the restart (${models.join(', ')})`)
 await page.screenshot({ path: `${shots}/restored.png` })
 // The conversation list on a new tab page.
 await page.evaluate((id) => window.kumi.activateTab(id), after.tabs[1].id)

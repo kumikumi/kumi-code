@@ -1,11 +1,9 @@
 // Starts a project-less conversation, answers a permission prompt, and checks the reply, commands and tabs.
-import { check, deleteConversations, launch, newUserData, shots, waitForReply } from './launch.mjs'
+import { check, deleteConversations, launch, MODEL, newUserData, replyModels, shots, startConversation, waitForReply } from './launch.mjs'
 
 const { app, page } = await launch(newUserData())
-await page.getByText('No project', { exact: true }).click()
-await page.waitForSelector('.composer textarea')
-await page.waitForFunction(() => document.querySelectorAll('.composer-bar select')[1]?.querySelectorAll('option').length > 1, null, { timeout: 30000 })
-check(true, 'model list loaded')
+const id = await startConversation(page)
+check((await page.locator('.composer-bar select').nth(1).inputValue()) === MODEL, `the model list loads and ${MODEL} is picked`)
 await page.locator('.composer textarea').fill('/comp')
 await page.waitForTimeout(300)
 check((await page.locator('.suggestions li').allInnerTexts()).some((t) => t.startsWith('/compact')), 'slash command completion offers /compact')
@@ -13,9 +11,10 @@ await page.locator('.composer textarea').fill('Use the Write tool to create ok.t
 await page.keyboard.press('Enter')
 await page.waitForSelector('.request.permission', { timeout: 120000 })
 check((await page.locator('.request-title').innerText()) === 'Allow Write?', 'Write asks for permission')
-// What the user typed in the card survives meta updates, here a change of effort.
+// What the user typed in the card survives meta updates. Re-setting the mode
+// changes nothing but sends new meta.
 await page.locator('.request input.grow').fill('a note')
-await page.locator('.composer-bar select').nth(2).selectOption({ index: 1 })
+await page.evaluate((id) => window.kumi.setPermissionMode(id, 'default'), id)
 await page.waitForTimeout(500)
 check((await page.locator('.request input.grow').inputValue()) === 'a note', 'a permission card keeps its input across meta updates')
 await page.locator('.request button.primary', { hasText: 'Allow' }).click()
@@ -23,6 +22,8 @@ await waitForReply(page, 1)
 check((await page.locator('.item.tool .tool-label').allInnerTexts()).includes('Write'), 'the allowed Write shows as a tool card')
 const reply = (await page.locator('.transcript .item.text').allInnerTexts()).at(-1) ?? ''
 check(reply.includes('OK'), `Claude replies (${JSON.stringify(reply.slice(0, 40))})`)
+const models = replyModels(id)
+check(models.length > 0 && models.every((m) => m.includes(MODEL)), `${MODEL} wrote the replies (${models.join(', ')})`)
 check(/\d+% context/.test(await page.locator('.composer-bar').innerText()), 'the context meter shows')
 check((await page.locator('.tab .tab-title').first().innerText()) !== 'New conversation', 'the tab gets a title')
 await page.screenshot({ path: `${shots}/conversation.png` })

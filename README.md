@@ -41,7 +41,7 @@ bun run dev
 
 `bun run typecheck` checks the main-process and renderer projects; `bun run test` runs the unit
 tests; `bun run e2e` builds the app (with an unminified UI, `--mode e2e`) and drives it with Playwright (it opens real windows, sends
-a few short messages to Claude on your subscription, and never touches the real mouse).
+a few short messages to Claude Haiku on your subscription, and never touches the real mouse).
 
 Kumi Code's own state (windows, tabs, recent projects, which conversations it started and their
 settings) lives in `~/Library/Application Support/Kumi Code/state.json`; project-less
