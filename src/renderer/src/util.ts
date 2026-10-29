@@ -1,13 +1,57 @@
-export function relativeTime(ts: number, now = Date.now()): string {
-  const s = Math.round((now - ts) / 1000)
-  if (s < 60) return 'just now'
-  const m = Math.round(s / 60)
-  if (m < 60) return `${m} min ago`
-  const h = Math.round(m / 60)
-  if (h < 24) return `${h} h ago`
-  const d = Math.round(h / 24)
-  if (d < 7) return `${d} d ago`
-  return new Date(ts).toLocaleDateString()
+export interface DateGroup<T> {
+  label: string
+  items: T[]
+}
+
+/**
+ * Groups items, newest first, by when they happened: Today, Yesterday, Previous
+ * 7 days, Previous 30 days, then by month. Days are local calendar days.
+ */
+export function groupByDate<T>(items: T[], timeOf: (item: T) => number, now = Date.now()): DateGroup<T>[] {
+  const today = startOfDay(now)
+  const yesterday = addDays(today, -1)
+  const week = addDays(today, -7)
+  const month = addDays(today, -30)
+  const thisYear = new Date(now).getFullYear()
+  const groups: DateGroup<T>[] = []
+  for (const item of items) {
+    const ts = timeOf(item)
+    let label: string
+    if (ts >= today) label = 'Today'
+    else if (ts >= yesterday) label = 'Yesterday'
+    else if (ts >= week) label = 'Previous 7 days'
+    else if (ts >= month) label = 'Previous 30 days'
+    else {
+      const date = new Date(ts)
+      label = date.toLocaleDateString(undefined, { month: 'long', year: date.getFullYear() === thisYear ? undefined : 'numeric' })
+    }
+    const last = groups.at(-1)
+    if (last?.label === label) last.items.push(item)
+    else groups.push({ label, items: [item] })
+  }
+  return groups
+}
+
+/** A time as precisely as its date group needs: the clock time this week, the date before. */
+export function shortTime(ts: number, now = Date.now()): string {
+  const today = startOfDay(now)
+  const date = new Date(ts)
+  if (ts >= addDays(today, -1)) return clockTime(ts)
+  if (ts >= addDays(today, -7)) return `${date.toLocaleDateString(undefined, { weekday: 'short' })} ${clockTime(ts)}`
+  const sameYear = date.getFullYear() === new Date(now).getFullYear()
+  return date.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: sameYear ? undefined : 'numeric' })
+}
+
+function startOfDay(ts: number): number {
+  const d = new Date(ts)
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
+}
+
+/** Calendar days, so a daylight saving change does not shift the boundary. */
+function addDays(dayStart: number, days: number): number {
+  const d = new Date(dayStart)
+  d.setDate(d.getDate() + days)
+  return d.getTime()
 }
 
 export function clockTime(ts: number): string {

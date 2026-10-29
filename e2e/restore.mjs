@@ -1,5 +1,5 @@
 // Windows and tabs come back after a restart; a reopened conversation shows its transcript.
-import { check, launch, newUserData, shots, waitForReply } from './launch.mjs'
+import { check, deleteConversations, launch, newUserData, shots, waitForReply } from './launch.mjs'
 
 const userData = newUserData()
 let { app, page } = await launch(userData)
@@ -31,4 +31,5 @@ await page.screenshot({ path: `${shots}/restored.png` })
 await page.evaluate((id) => window.kumi.activateTab(id), after.tabs[1].id)
 await page.waitForTimeout(1500)
 check((await page.locator('.conversation-row').count()) === 1, 'the conversation is listed on the new tab page')
+await deleteConversations(page)
 await app.close()

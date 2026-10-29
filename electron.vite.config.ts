@@ -1,5 +1,5 @@
 import { defineConfig } from 'electron-vite'
-import react from '@vitejs/plugin-react'
+import { svelte } from '@sveltejs/vite-plugin-svelte'
 import { resolve } from 'node:path'
 
 const alias = { '@shared': resolve('src/shared') }
@@ -14,7 +14,7 @@ export default defineConfig({
     build: { rollupOptions: { output: { format: 'cjs', entryFileNames: '[name].cjs' } } },
   },
   renderer: {
-    plugins: [react()],
+    plugins: [svelte()],
     resolve: { alias },
   },
 })

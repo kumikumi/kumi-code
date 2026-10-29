@@ -1,6 +1,6 @@
 # Kumi Code
 
-A barebones Claude Code frontend. TypeScript, Electron, React and Anthropic's Claude Agent SDK.
+A barebones Claude Code frontend. TypeScript, Electron, Svelte and Anthropic's Claude Agent SDK.
 `SPEC.md` is the source of truth for what the code does; this file is the short version.
 
 ## Model

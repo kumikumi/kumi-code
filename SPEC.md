@@ -15,9 +15,10 @@ What the code does, precisely. `README.md` is the short version.
 - `src/main/` — Electron main process: `workspace.ts` (windows, tabs, open conversations),
   `drag.ts` (tabs dragged out of a strip), `index.ts` (IPC, menu, startup).
 - `src/preload/` — the `window.kumi` bridge (`KumiApi` in `src/shared/types.ts`).
-- `src/renderer/` — React UI: `App.tsx` (a window), `TabStrip.tsx`, `NewTabPage.tsx`,
-  `ConversationView.tsx`, `Transcript.tsx`, `tools.tsx`, `Requests.tsx`, `Composer.tsx`,
-  `markdown.tsx`, `state.ts`.
+- `src/renderer/` — Svelte 5 UI: `App.svelte` (a window), `TabStrip.svelte`, `NewTabPage.svelte`,
+  `Conversation.svelte`, `Item.svelte` (a transcript item), `ToolInput.svelte`, `Requests.svelte`,
+  `Composer.svelte`, `Rich.svelte` (markdown or a code block), `Todos.svelte`; `state.svelte.ts`
+  (window and conversation state), `markdown.ts`, `tools.ts`, `util.ts`.
 
 ## Auth
 
@@ -91,7 +92,14 @@ What the code does, precisely. `README.md` is the short version.
   attach by `tool_use_id`. Output with a `parent_tool_use_id` nests under that tool.
 - Every change is reported against its top-level item; the main process sends changed top-level
   items, throttled to 40 ms, with a per-conversation revision number. A renderer fetches a snapshot
-  (with its revision) when it first shows a conversation and ignores older events.
+  (with its revision) when it first shows a conversation and ignores older events. It keeps the
+  items as raw (unproxied) Svelte state and replaces the changed ones, so rows of unchanged items
+  are left alone.
+- Markdown: `marked` (GitHub-flavoured) to HTML, sanitized with DOMPurify (it is model output).
+  Code blocks get a language label and a copy button, and are highlighted with Shiki (JavaScript
+  regex engine, `github-dark-default`) once the text stops streaming. Links open in the browser.
+- Callbacks the main process calls through the context bridge return nothing: the bridge clones a
+  return value back, and a Svelte state proxy cannot be cloned.
 - Stored user messages that Claude Code injected are classified: `<command-name>` → the command as
   a user message, `<local-command-stdout>` → command output, `<system-reminder>` and
   `<local-command-caveat>` → hidden, `<task-notification>` → its summary as a notice,
@@ -125,14 +133,20 @@ What the code does, precisely. `README.md` is the short version.
 ## New tab page
 
 - Login status and 5-hour usage.
+- Recency is the time of a session's last message: the timestamp of the last `user` or
+  `assistant` record of its transcript (`~/.claude/projects/*/<id>.jsonl`, read from the end).
+  Not the file's modification time: Claude Code appends bookkeeping records (cost totals, tool
+  latches) whenever a process for the session exits. Sessions without a message are left out.
 - *New conversation*: recent projects (Kumi Code's own recents, then the folders of other Claude
-  Code sessions; existing folders only, not under Kumi Code's scratch root or
-  `~/Library/Application Support/`; at most 12), *Open folder…*, *No project* (a new folder
+  Code sessions by their last message; existing folders only, not under Kumi Code's scratch root
+  or `~/Library/Application Support/`; at most 12), *Open folder…*, *No project* (a new folder
   `<userData>/scratch/scratch-YYYY-MM-DD-<6 hex>`, mode 0700, like Claude Code's desktop app).
 - *Conversations*: Kumi Code's conversations (or, with the toggle, every Claude Code session on
-  this machine), newest first, with search over title, project and folder. Rename; delete (with
-  confirmation) removes the transcript with `deleteSession`. Opening a session from elsewhere
-  adds it to Kumi Code's conversations.
+  this machine), most recently active first, grouped by local calendar date: Today, Yesterday,
+  Previous 7 days, Previous 30 days, then by month (with the year when it is not this one). Each
+  row shows the time this week and the date before. Search over title, project and folder keeps
+  the grouping. Rename; delete (with confirmation) removes the transcript with `deleteSession`.
+  Opening a session from elsewhere adds it to Kumi Code's conversations.
 
 ## State
 

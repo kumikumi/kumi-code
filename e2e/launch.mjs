@@ -1,5 +1,6 @@
 // Launches the built app (`bun run build` first) with a throwaway state directory.
-// The app opens real windows; the tests never touch the real mouse.
+// The app opens real windows; the tests never touch the real mouse. Conversations
+// are real Claude Code sessions, so tests delete the ones they create.
 
 import { _electron as electron } from 'playwright-core'
 import { mkdtempSync } from 'node:fs'
@@ -25,7 +26,7 @@ export async function launch(userData) {
     if (!s.includes('Debugger') && !s.includes('debugging')) process.stderr.write(`[main] ${s}`)
   })
   const page = await app.firstWindow()
-  page.on('pageerror', (e) => console.log('[renderer error]', e.message))
+  page.on('pageerror', (e) => console.log('[renderer error]', e.stack ?? e.message))
   await page.waitForSelector('.tabstrip')
   return { app, page }
 }
@@ -50,4 +51,11 @@ export async function waitForReply(page, count, timeoutMs = 180000) {
     await page.waitForTimeout(300)
   }
   throw new Error('Timed out waiting for a reply')
+}
+
+/** Deletes the conversations this test's Kumi Code state knows, so they leave no sessions behind. */
+export async function deleteConversations(page) {
+  for (const c of await page.evaluate(() => window.kumi.listConversations(false))) {
+    await page.evaluate((id) => window.kumi.deleteConversation(id), c.id)
+  }
 }

@@ -164,7 +164,8 @@ export interface ConversationSummary {
   title: string
   cwd: string
   project: string | null
-  lastModified: number
+  /** When the conversation last had a message. */
+  lastActive: number
   gitBranch: string | null
   /** Started in Kumi Code. */
   kumi: boolean

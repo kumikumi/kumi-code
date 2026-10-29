@@ -1,5 +1,5 @@
 // Starts a project-less conversation and sends a message; checks commands load and tabs reorder.
-import { check, launch, newUserData, shots, waitForReply } from './launch.mjs'
+import { check, deleteConversations, launch, newUserData, shots, waitForReply } from './launch.mjs'
 
 const { app, page } = await launch(newUserData())
 await page.getByText('No project', { exact: true }).click()
@@ -23,4 +23,5 @@ await page.evaluate((id) => window.kumi.moveTab(id, 0), state.tabs[1].id)
 const after = await page.evaluate(() => window.kumi.getWindowState())
 check(after.tabs[0].id === state.tabs[1].id, 'moveTab reorders')
 console.log(`screenshots: ${shots}`)
+await deleteConversations(page)
 await app.close()

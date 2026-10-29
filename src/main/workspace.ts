@@ -312,13 +312,16 @@ export class Workspace {
   }
 
   async deleteConversation(id: string): Promise<void> {
-    const found = this.findTab(id)
-    if (found) this.closeTab(found.entry, found.tab.id)
+    // Claude Code must not write to the transcript after it is gone. The tab
+    // closes last: closing a window's only tab closes the window.
+    this.conversations.get(id)?.stop()
     const cwd = this.opts.store.get().conversations[id]?.cwd
     await deleteSession(id, cwd ? { dir: cwd } : undefined)
     this.opts.store.update((s) => {
       delete s.conversations[id]
     })
+    const found = this.findTab(id)
+    if (found) this.closeTab(found.entry, found.tab.id)
     this.broadcast(IPC.evConversationsChanged)
   }
 
