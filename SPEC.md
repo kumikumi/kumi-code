@@ -264,8 +264,13 @@ What the code does, precisely. `README.md` is the short version.
   group of its own; `preview_start` waits until its port takes connections (90 s at most, or an
   error with the output's tail if it exits), then opens it in the tab that has its origin, a
   blank tab or a new one. A configuration with a `url` and no command attaches. Starting a
-  running one reuses it. The last 5000 output lines are kept. Servers are shared by the
-  conversations of a project and stop with `preview_stop` or on quit.
+  running one reuses it; starting one whose port something else answers on is an error. The last
+  5000 output lines are kept. Servers are shared by the conversations of a project.
+- `preview_stop` stops everything the server started, such as the JVM `mvn spring-boot:run`
+  forks: the processes of its group and every descendant of its first process (`ps`), also those
+  that left the group. It sends SIGTERM, waits for all of them to exit, sends SIGKILL to what
+  still runs after 15 s, and reports which happened and whether the port is free. On quit
+  (also on SIGTERM to Kumi Code) every server gets SIGTERM, without waiting.
 - The pane: the dock, beside the transcript, shows the review panel or the browser. The header's
   *Review* and *Browser* buttons toggle it; it opens by itself for a new review and for a
   browser's first tab when it is closed. Its left edge resizes it (drag, or ← / → when focused; a

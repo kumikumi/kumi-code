@@ -218,10 +218,7 @@ const TOOLS: Record<string, ToolDef> = {
   preview_stop: {
     description: 'Stop a server started with preview_start.',
     shape: { serverId: z.string().describe('Server ID to stop') },
-    run: async (ctx, input) => {
-      ctx.previews.stop(str(input.serverId))
-      return text(`Stopped ${str(input.serverId)}`)
-    },
+    run: async (ctx, input) => text(await ctx.previews.stop(str(input.serverId))),
   },
 
   read_console_messages: {

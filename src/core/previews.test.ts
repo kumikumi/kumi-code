@@ -1,8 +1,8 @@
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { configurationUrl, Previews, readLaunchConfigurations } from './previews'
 
 function project(configurations: unknown[]): string {
@@ -53,5 +53,61 @@ describe('previews', () => {
       previews.stopAll()
     }
     expect(previews.list(cwd)).toEqual([])
+  })
+
+  // Like mvn spring-boot:run: the server forks the process that serves, which takes a while to shut down.
+  // Each process says when its SIGTERM handler is in place; the server then writes their pids.
+  const forking = (stubborn: boolean): string => `
+    import { spawn } from 'node:child_process'
+    import { writeFileSync } from 'node:fs'
+    // Maven waits for the JVM it forked.
+    process.on('SIGTERM', () => app.on('exit', () => process.exit(0)))
+    const ready = (child) => new Promise((done) => child.stdout.once('data', done))
+    const app = spawn(process.execPath, ['-e', \`
+      process.on('SIGTERM', () => setTimeout(() => process.exit(0), 700))
+      require('node:http').createServer((q, s) => s.end('ok')).listen(Number(process.env.PORT), () => console.log('ready'))
+    \`], { stdio: ['ignore', 'pipe', 'inherit'] })
+    const children = [app]
+    if (${stubborn}) {
+      // Leaves the process group, and ignores SIGTERM.
+      children.push(spawn(process.execPath, ['-e', 'process.on("SIGTERM", () => {}); console.log("ready"); setInterval(() => {}, 1000)'], { detached: true, stdio: ['ignore', 'pipe', 'ignore'] }))
+    }
+    await Promise.all(children.map(ready))
+    writeFileSync('pids.json', JSON.stringify([process.pid, ...children.map((c) => c.pid)]))`
+
+  const running = (pid: number): boolean => {
+    try {
+      process.kill(pid, 0)
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  it('stops everything a server started, waiting for it, and kills what will not stop', async () => {
+    for (const stubborn of [false, true]) {
+      const port = await freePort()
+      const cwd = project([{ name: 'app', runtimeExecutable: process.execPath, runtimeArgs: ['server.mjs'], port, env: { PORT: String(port) } }])
+      writeFileSync(join(cwd, 'server.mjs'), forking(stubborn))
+      const previews = new Previews(1500)
+      const { info } = await previews.start(cwd, 'app')
+      await vi.waitFor(() => readFileSync(join(cwd, 'pids.json')), { timeout: 5000 })
+      const pids = JSON.parse(readFileSync(join(cwd, 'pids.json'), 'utf8')) as number[]
+      expect(pids.every(running)).toBe(true)
+      const report = await previews.stop(info.serverId)
+      expect(pids.some(running), report).toBe(false)
+      expect(report).toContain(`Port ${port} is free`)
+      if (stubborn) expect(report).toMatch(/1 process was still running 1\.5 s after SIGTERM and was killed/)
+      else expect(report).toMatch(/its 2 processes exited \d+\.\d s after SIGTERM/)
+    }
+  }, 20_000)
+
+  it('will not start a server on a port something else answers on', async () => {
+    const other = createServer().listen(0)
+    await new Promise((d) => other.once('listening', d))
+    const { port } = other.address() as { port: number }
+    const cwd = project([{ name: 'app', runtimeExecutable: process.execPath, runtimeArgs: ['-e', 'setInterval(() => {}, 1000)'], port }])
+    await expect(new Previews().start(cwd, 'app')).rejects.toThrow(`Something already answers on port ${port}`)
+    other.close()
   })
 })
