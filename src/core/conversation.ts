@@ -29,7 +29,6 @@ import type {
 import { loginCommand } from './auth'
 import { agentEnvironment } from './environment'
 import { InputQueue } from './input-queue'
-import { REVIEW_TOOLS } from './review-tools'
 import { TranscriptBuilder } from './transcript'
 import type { StoredMessage } from './transcript'
 
@@ -37,6 +36,16 @@ export interface ConversationSettings {
   model: string | null
   effort: EffortLevel | null
   permissionMode: PermissionMode
+}
+
+/** Which tools run without asking, beyond the permission rules of Claude Code's settings. */
+export interface ToolAccess {
+  /** Always, so canUseTool never sees them. */
+  allowedTools: string[]
+  /** Whether a call that would ask may run without asking. */
+  allows(toolName: string, input: Record<string, unknown>): boolean
+  /** The user allowed a call. */
+  allowed(toolName: string, input: Record<string, unknown>): void
 }
 
 export interface ConversationEvents {
@@ -89,6 +98,7 @@ export class Conversation {
     project: string | null,
     settings: ConversationSettings,
     private readonly events: ConversationEvents,
+    private readonly access: ToolAccess,
   ) {
     this.meta = {
       id,
@@ -212,6 +222,7 @@ export class Conversation {
     this.meta.requests = this.meta.requests.filter((r) => r.id !== requestId)
     this.lastActivity = Date.now()
     pending.resolve(permissionResult(pending, response))
+    if (pending.request.kind === 'permission' && response.kind === 'permission' && response.allow) this.access.allowed(pending.request.toolName, pending.input)
     if (response.kind === 'plan' && response.approve) {
       this.setPermissionMode(response.mode).catch((err: unknown) => {
         this.transcript.addNotice('error', `Could not switch to ${response.mode}: ${err instanceof Error ? err.message : String(err)}`)
@@ -287,7 +298,7 @@ export class Conversation {
       allowDangerouslySkipPermissions: true,
       canUseTool: this.canUseTool,
       mcpServers: this.mcpServers(),
-      allowedTools: REVIEW_TOOLS,
+      allowedTools: this.access.allowedTools,
       includePartialMessages: true,
       thinking: { type: 'adaptive', display: 'summarized' },
       env: agentEnvironment(),
@@ -452,6 +463,10 @@ export class Conversation {
 
   private readonly canUseTool: CanUseTool = (toolName, input, options) =>
     new Promise<PermissionResult>((resolve) => {
+      if (this.access.allows(toolName, input)) {
+        resolve({ behavior: 'allow', updatedInput: input })
+        return
+      }
       const id = options.toolUseID
       let request: PendingRequest
       if (toolName === 'AskUserQuestion') {

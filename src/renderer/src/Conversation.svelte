@@ -1,6 +1,10 @@
-<!-- A conversation: its transcript, task list, pending requests, the composer, and the review it is in. -->
+<!-- A conversation: its transcript, task list, pending requests and the composer, and beside them a pane with the review it is in or its browser. -->
 <script lang="ts">
+  import { untrack } from 'svelte'
+  import type { BrowserState } from '@shared/types'
+  import BrowserPane from './BrowserPane.svelte'
   import Composer from './Composer.svelte'
+  import Dock from './Dock.svelte'
   import Item from './Item.svelte'
   import Requests from './Requests.svelte'
   import ReviewPanel from './ReviewPanel.svelte'
@@ -12,6 +16,7 @@
 
   /** Within this many pixels of the bottom, the transcript follows new output. */
   const STICK_DISTANCE = 80
+  const NO_BROWSER: BrowserState = { tabs: [], activeTabId: null, activity: null }
 
   // A tab's conversation never changes; App keys the component by it.
   // svelte-ignore state_referenced_locally
@@ -21,7 +26,10 @@
   let renaming = $state<string | null>(null)
   let renameError = $state<string | null>(null)
   let tasksOpen = $state(true)
-  let reviewOpen = $state(true)
+  /** What the pane beside the transcript shows; null when it is closed. */
+  let pane = $state<'review' | 'browser' | null>(null)
+  let seenReview: string | null = null
+  let browserWasOpen = false
 
   const meta = $derived(c.meta)
   // Rows get the folder as a string of its own: a new meta object (every meta
@@ -31,6 +39,30 @@
   const showTasks = $derived(tasks.some((t) => t.status !== 'completed'))
   // The implementer's review comes first when the conversation is in two.
   const review = $derived(app.reviews.find((r) => r.implementerId === id) ?? app.reviews.find((r) => r.reviewerId === id))
+  const reviewId = $derived(review?.id ?? null)
+  const browser = $derived(c.browser)
+  const browserOpen = $derived((browser?.tabs.length ?? 0) > 0)
+
+  // The pane opens by itself for a new review, and for the browser's first tab, when it is closed.
+  $effect.pre(() => {
+    const current = reviewId
+    untrack(() => {
+      if (current && current !== seenReview && pane === null) pane = 'review'
+      if (!current && pane === 'review') pane = browserOpen ? 'browser' : null
+    })
+    seenReview = current
+  })
+  $effect.pre(() => {
+    const open = browserOpen
+    untrack(() => {
+      if (open && !browserWasOpen && pane === null) pane = 'browser'
+    })
+    browserWasOpen = open
+  })
+
+  function toggle(which: 'review' | 'browser'): void {
+    pane = pane === which ? null : which
+  }
 
   // New output, or coming back into view: follow the bottom unless scrolled up.
   $effect(() => {
@@ -66,7 +98,10 @@
       {/if}
       <span class="project-label" title={meta.cwd}>{meta.project ?? 'No project'} <span class="muted">{tildify(meta.cwd)}</span></span>
       {#if renameError}<span class="notice error">{renameError}</span>{/if}
-      {#if review && !reviewOpen}<button class="ghost small" onclick={() => (reviewOpen = true)}>Review</button>{/if}
+      {#if review}<button class={['ghost small', pane === 'review' && 'pane-on']} onclick={() => toggle('review')}>Review</button>{/if}
+      <button class={['ghost small', pane === 'browser' && 'pane-on']} title="The conversation's browser" onclick={() => toggle('browser')}>
+        Browser{#if browser?.activity}<span class="browser-activity-dot"></span>{/if}
+      </button>
     </header>
     <div class="conversation-body">
       <div class="conversation-main">
@@ -102,7 +137,11 @@
           <Composer {meta} {visible} />
         </div>
       </div>
-      {#if review && reviewOpen}<ReviewPanel {review} conversationId={id} {visible} onhide={() => (reviewOpen = false)} />{/if}
+      {#if pane === 'review' && review}
+        <Dock kind="review"><ReviewPanel {review} conversationId={id} {visible} onhide={() => (pane = null)} /></Dock>
+      {:else if pane === 'browser'}
+        <Dock kind="browser"><BrowserPane conversationId={id} browser={browser ?? NO_BROWSER} {visible} onhide={() => (pane = null)} /></Dock>
+      {/if}
     </div>
   </div>
 {/if}

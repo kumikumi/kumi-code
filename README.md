@@ -22,6 +22,10 @@ A barebones Claude Code frontend. TypeScript, Electron, Svelte and Anthropic's C
   fixes each or pushes back) and each answer straight on to the reviewer (which accepts or
   reopens it); the agents answer through Kumi Code's own tools. The user picks which finding
   goes next and can close any finding with a click.
+- **Browser**: each conversation has its own browser, with the tools of the Claude desktop
+  app's browser pane as `mcp__browser__*`. Its tabs render offscreen at their own viewport, so
+  they work whether or not anyone looks; the pane beside the transcript shows them scaled to fit
+  and passes the user's mouse and keyboard on. Local pages need no permission; other sites ask.
 - **New tab page**: past conversations (those started in Kumi Code, or every Claude Code session
   on this machine with the toggle) and a new conversation in a recent project, a picked folder
   or no project.

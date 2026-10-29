@@ -1,23 +1,4 @@
-<!-- The review a conversation is in: every finding with where it stands, and the one the user looks at with its thread and the actions that move it on. Its left edge resizes it. -->
-<script module lang="ts">
-  const WIDTH_KEY = 'reviewPanelWidth'
-  const DEFAULT_WIDTH = 340
-  const MIN_WIDTH = 280
-  /** What the transcript keeps at least when the panel widens. */
-  const MIN_MAIN = 400
-
-  /** Shared by the review panels of this window, and remembered for the next launch. */
-  const size = $state({ width: Number(localStorage.getItem(WIDTH_KEY)) || DEFAULT_WIDTH })
-
-  function setWidth(width: number): void {
-    size.width = Math.round(Math.max(MIN_WIDTH, Math.min(width, window.innerWidth - MIN_MAIN)))
-  }
-
-  function saveWidth(): void {
-    localStorage.setItem(WIDTH_KEY, String(size.width))
-  }
-</script>
-
+<!-- The review a conversation is in: every finding with where it stands, and the one the user looks at with its thread and the actions that move it on. -->
 <script lang="ts">
   import { isSettled, relayTarget, statusLabel } from '@shared/review'
   import type { FindingReply, Review, ReviewFinding } from '@shared/types'
@@ -42,9 +23,6 @@
   let note = $state('')
   let error = $state<string | null>(null)
   let sending = $state(false)
-  let aside = $state<HTMLElement>()
-  /** Where a resize started: the pointer and the panel's width. */
-  let resizing = $state<{ x: number; width: number } | null>(null)
 
   // A picked finding that gets settled hands over to the next one.
   $effect.pre(() => {
@@ -83,28 +61,6 @@
       .finally(() => (sending = false))
   }
 
-  function startResize(e: PointerEvent): void {
-    if (e.button !== 0 || !aside) return
-    e.preventDefault()
-    ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
-    // The width the panel has, which its max-width may hold below the one set.
-    resizing = { x: e.clientX, width: aside.getBoundingClientRect().width }
-  }
-
-  function endResize(): void {
-    if (!resizing) return
-    resizing = null
-    saveWidth()
-  }
-
-  function resizeByKey(e: KeyboardEvent): void {
-    const step = e.key === 'ArrowLeft' ? 20 : e.key === 'ArrowRight' ? -20 : 0
-    if (!step) return
-    e.preventDefault()
-    setWidth(size.width + step)
-    saveWidth()
-  }
-
   function end(): void {
     if (window.confirm('End this review? Its findings and their threads are removed from Kumi Code; both conversations stay.')) run(api.endReview(review.id))
   }
@@ -140,24 +96,7 @@
   }}
 />
 
-<aside class="review-panel" style:width="{size.width}px" bind:this={aside}>
-  <!-- A focusable separator is a widget, the ARIA window splitter; Svelte counts every separator as static. -->
-  <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
-  <div
-    class={['review-resize', resizing && 'active']}
-    role="separator"
-    aria-orientation="vertical"
-    aria-label="Resize the review panel"
-    aria-valuenow={size.width}
-    tabindex="0"
-    title="Drag to resize; double-click for the default width"
-    onpointerdown={startResize}
-    onpointermove={(e) => resizing && setWidth(resizing.width + resizing.x - e.clientX)}
-    onpointerup={endResize}
-    onpointercancel={endResize}
-    ondblclick={() => (setWidth(DEFAULT_WIDTH), saveWidth())}
-    onkeydown={resizeByKey}
-  ></div>
+<div class="review-panel">
   <header class="review-head">
     <span class="review-name">Review</span>
     <span class="muted review-progress">{review.findings.filter((f) => isSettled(f.status)).length} of {review.findings.length} settled</span>
@@ -207,4 +146,4 @@
       </li>
     {/each}
   </ol>
-</aside>
+</div>

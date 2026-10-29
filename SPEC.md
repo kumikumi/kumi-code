@@ -14,15 +14,21 @@ What the code does, precisely. `README.md` is the short version.
   - `input-queue.ts` — the streaming input of a `query()`.
   - `review.ts` — `Reviews`: code review loops, and the relayed messages' format.
   - `review-tools.ts` — Kumi Code's MCP server with the agents' review tools.
-- `src/main/` — Electron main process: `workspace.ts` (windows, tabs, open conversations),
-  `drag.ts` (tabs dragged out of a strip), `index.ts` (IPC, menu, startup).
+  - `keys.ts` — key names and shortcuts → DevTools protocol key events.
+  - `urls.ts` — local pages, typed URLs, origins, redaction.
+  - `previews.ts` — `Previews`: dev servers from a project's `.claude/launch.json`.
+- `src/main/` — Electron main process: `workspace.ts` (windows, tabs, open conversations and
+  their browsers), `drag.ts` (tabs dragged out of a strip), `index.ts` (IPC, menu, startup),
+  `browser.ts` (`Browser`, `BrowserTab`: a conversation's offscreen tabs), `browser-tools.ts` (the
+  `browser` MCP server), `browser-page.ts` (the helper the tools run inside a page).
 - `src/preload/` — the `window.kumi` bridge (`KumiApi` in `src/shared/types.ts`).
 - `src/shared/` — `types.ts` (everything that crosses IPC), `review.ts` (review rules the main
   process and the renderer share).
 - `src/renderer/` — Svelte 5 UI: `App.svelte` (a window), `TabStrip.svelte`, `NewTabPage.svelte`,
   `Conversation.svelte`, `Item.svelte` (a transcript item), `ToolInput.svelte`, `Requests.svelte`,
   `Composer.svelte`, `Rich.svelte` (markdown or a code block), `Todos.svelte`, `FindingsCard.svelte`,
-  `FindingDetails.svelte`, `RelayCard.svelte`, `ReviewPanel.svelte`; `state.svelte.ts`
+  `FindingDetails.svelte`, `RelayCard.svelte`, `ReviewPanel.svelte`, `Dock.svelte` (the pane beside
+  the transcript), `BrowserPane.svelte`; `state.svelte.ts`
   (window and conversation state), `markdown.ts`, `tools.ts`, `util.ts`.
 
 ## Auth
@@ -206,14 +212,75 @@ What the code does, precisely. `README.md` is the short version.
 - UI: a `ReportFindings` call shows as a findings card (ranked rows that expand to details, the
   review's status per finding, and *Start review loop…*, which picks the implementer among Kumi
   Code's conversations, this folder's first). A conversation in a review shows the review panel
-  beside the transcript: every finding with its status, *Close* / *Reopen* per row, and the
+  beside the transcript (the dock, see Browser): every finding with its status, *Close* / *Reopen* per row, and the
   current finding (the one picked, else the first that can be sent) with its thread (each entry
   headed by its speaker, colored by role), a note field and the send button (⌘↵). Sending a finding picks it; a picked finding that gets settled hands over to the next. *Reviewer* /
-  *Implementer* switches to the other conversation; *End* removes the review. The panel's left
-  edge resizes it (drag, or ← / → when focused; a double-click restores 340 px), between 280 px
-  and the window's width less 400 px. The width is shared by the panels of a window and kept in
-  the renderer's `localStorage` (`reviewPanelWidth`), not in the state file.
+  *Implementer* switches to the other conversation; *End* removes the review.
 - Deleting a conversation ends its reviews.
+
+## Browser
+
+- Each open conversation may have a browser: tabs the agent drives with the browser tools and
+  the user watches, and can use, in the browser pane. It is created on first use and closes
+  with the conversation's tab (and on quit).
+- A tab is an offscreen `BrowserWindow` that is never shown (`offscreen`, `backgroundThrottling:
+  false`, 30 frames a second at most). It renders at its own viewport whether or not anyone
+  looks, so the pane's size, whether the conversation's tab shows, and anything else on the
+  screen change nothing the page sees. The DevTools protocol (`webContents.debugger`, attached
+  once the tab has loaded `about:blank`) carries input, evaluation, emulation, dialogs and the
+  network log; console messages come from `console-message`. Tabs share the persistent profile
+  `persist:browser`, with Electron and Kumi Code left out of its user agent; downloads and
+  permission requests (camera, location, …) are refused. A page's new windows open as tabs;
+  JavaScript dialogs are accepted and logged as console messages.
+- Viewport: width × height in CSS pixels at device scale 1 (default 1280 × 800), set by sizing the
+  window. A width under 768 also emulates a phone (mobile metrics, an Android Chrome user agent,
+  5 touch points); a color scheme emulates `prefers-color-scheme`. Both last across navigation.
+- Tools: the `browser` in-process MCP server copies the tool set of the Claude desktop app's
+  browser pane (`Claude_Browser`): `browser_batch`, `computer`, `find`, `form_input`,
+  `get_page_text`, `javascript_tool`, `navigate`, `preview_list`, `preview_logs`, `preview_start`,
+  `preview_stop`, `read_console_messages`, `read_network_requests`, `read_page`, `resize_window`,
+  `tabs_close`, `tabs_context`, `tabs_create`, `tabs_select`, with the same parameters. Notes:
+  - Without a `tabId` a tool acts on the active tab. `navigate` (with no tab open) and
+    `preview_start` open one.
+  - Screenshots are JPEG at page pixels scaled down to a frame of at most 1568 px on the long
+    side, and further by `scale`; coordinates are in that frame, refs click the element's center
+    (scrolled into view; visual viewport scale and offset applied).
+  - `read_page`/`find` use a helper in an isolated world (`browser-page.ts`): an accessibility-style
+    tree with `ref_N` for every element listed (text lines carry their parent's ref), hidden
+    elements left out, open shadow roots included, iframes not. Refs last until navigation.
+  - `javascript_tool` evaluates in the page's own world with REPL semantics.
+  - `browser_batch` runs steps in order, stops at the first error, cannot nest, refuses
+    `preview_start`, and refuses a step that would need the user's permission.
+  - Network: the last 500 requests, secrets in URLs replaced with REDACTED; console: the last 1000
+    messages.
+- Permission: every browser tool is in `allowedTools` except `navigate`, `javascript_tool` and
+  `preview_start`, which go through `canUseTool`. Kumi Code allows them without asking for
+  local pages (`about:blank`, `localhost`, `127.0.0.1`, `[::1]`, `*.localhost`, `*.test`), for
+  origins the user allowed in this conversation (by allowing such a call, or by opening the page
+  in the pane), for `javascript_tool` on such a page, and for a `preview_start` name the user
+  allowed before; anything else shows the permission card.
+- Dev servers (`previews.ts`): a configuration of `<project>/.claude/launch.json` (`name`,
+  `runtimeExecutable`, `runtimeArgs`, `port`, optional `url`, `cwd`, `env`) starts in a process
+  group of its own; `preview_start` waits until its port takes connections (90 s at most, or an
+  error with the output's tail if it exits), then opens it in the tab that has its origin, a
+  blank tab or a new one. A configuration with a `url` and no command attaches. Starting a
+  running one reuses it. The last 5000 output lines are kept. Servers are shared by the
+  conversations of a project and stop with `preview_stop` or on quit.
+- The pane: the dock, beside the transcript, shows the review panel or the browser. The header's
+  *Review* and *Browser* buttons toggle it; it opens by itself for a new review and for a
+  browser's first tab when it is closed. Its left edge resizes it (drag, or ← / → when focused; a
+  double-click restores the default: 340 px for the review, 560 px for the browser), between a
+  minimum (280 / 320 px) and the window's width less 400 px. Widths are kept per kind in the
+  renderer's `localStorage` (`reviewPanelWidth`, `browserPanelWidth`), shared by a window's panes.
+- The browser pane: browser tabs (select, close, new), back / forward / reload, the URL field
+  (opening a page there also allows its origin for the agent), the viewport (presets Desktop,
+  Laptop 1440 × 900, Tablet, Mobile; width and height; color scheme) and DevTools for the tab. While
+  a tool runs it shows what the tool does (its `action_summary`, or the tool). The page is a canvas
+  drawn from JPEG frames of the active tab, which the main process sends only to windows that
+  show the pane (`watchBrowser`), coalesced to 30 a second, and after viewport changes; it scales
+  to fit. The user's mouse (with click counts), wheel and keys go back as DevTools protocol input
+  in page pixels; ⌘ shortcuts for select all, copy, cut, paste, undo and redo become editing
+  commands.
 
 ## State
 
@@ -227,4 +294,5 @@ Review } }`. Another version is an error. Transcripts live where Claude Code kee
 Packaging (and with it a login-shell `PATH` for apps started from Finder), @-file mentions,
 rewind and fork, diff and git panels, a terminal, settings and MCP screens, worktrees,
 notifications, light theme, non-Anthropic models. For code review: relaying without a click per
-step, starting a reviewer from the implementer, and review rounds after the fixes.
+step, starting a reviewer from the implementer, and review rounds after the fixes. For the
+browser: tabs restored after a restart, iframes in `read_page`, file uploads and downloads.

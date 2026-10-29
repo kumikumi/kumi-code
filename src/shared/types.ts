@@ -154,6 +154,49 @@ export interface RelayMessage {
   note: string | null
 }
 
+// ---- browser ----
+
+/** What a browser tab's page sees of its window. */
+export interface Viewport {
+  width: number
+  height: number
+  /** A phone: mobile layout, an Android Chrome user agent and touch points. */
+  mobile: boolean
+  colorScheme: 'light' | 'dark' | null
+}
+
+export interface BrowserTabInfo {
+  id: string
+  title: string
+  url: string
+  loading: boolean
+  canGoBack: boolean
+  canGoForward: boolean
+  viewport: Viewport
+}
+
+/** A conversation's browser. */
+export interface BrowserState {
+  tabs: BrowserTabInfo[]
+  activeTabId: string | null
+  /** While a browser tool runs: what it does, e.g. "Opens the Filters menu". */
+  activity: string | null
+}
+
+/** What the user does in the browser pane. */
+export type BrowserAction =
+  /** In the active tab, or a new one when there is none. */
+  | { kind: 'navigate'; url: string }
+  | { kind: 'back' | 'forward' | 'reload' | 'select' | 'close' | 'devtools'; tabId: string }
+  | { kind: 'newTab' }
+  | { kind: 'viewport'; tabId: string; viewport: Viewport }
+
+/** The user's mouse and keyboard on a tab, in page pixels. modifiers: Alt 1, Ctrl 2, Meta 4, Shift 8. */
+export type BrowserInput =
+  | { type: 'mouse'; action: 'down' | 'up' | 'move'; x: number; y: number; button: 'left' | 'middle' | 'right' | 'none'; clickCount: number; modifiers: number }
+  | { type: 'wheel'; x: number; y: number; deltaX: number; deltaY: number; modifiers: number }
+  | { type: 'key'; action: 'down' | 'up'; key: string; code: string; keyCode: number; modifiers: number }
+
 // ---- requests the agent is waiting on ----
 
 export interface QuestionOption {
@@ -314,6 +357,10 @@ export const IPC = {
   relayFinding: 'review:relay',
   setFindingClosed: 'review:set-closed',
   endReview: 'review:end',
+  getBrowser: 'browser:get',
+  browserAction: 'browser:action',
+  browserInput: 'browser:input',
+  watchBrowser: 'browser:watch',
   evWindowState: 'ev:window',
   evConversationMeta: 'ev:conversation-meta',
   evConversationItems: 'ev:conversation-items',
@@ -321,6 +368,8 @@ export const IPC = {
   evDragHover: 'ev:drag-hover',
   evConversationsChanged: 'ev:conversations-changed',
   evReviews: 'ev:reviews',
+  evBrowser: 'ev:browser',
+  evBrowserFrame: 'ev:browser-frame',
 } as const
 
 export interface KumiApi {
@@ -370,6 +419,13 @@ export interface KumiApi {
   relayFinding(reviewId: string, rank: number, note: string): Promise<void>
   setFindingClosed(reviewId: string, rank: number, closed: boolean): Promise<void>
   endReview(reviewId: string): Promise<void>
+  /** The conversation's browser; no tabs when it has not opened any. */
+  getBrowser(conversationId: string): Promise<BrowserState>
+  browserAction(conversationId: string, action: BrowserAction): Promise<void>
+  /** The user's input on a tab. Not awaited: it comes often. */
+  browserInput(conversationId: string, tabId: string, input: BrowserInput): void
+  /** Whether this window shows the conversation's browser, and so wants its frames. */
+  watchBrowser(conversationId: string, watching: boolean): void
   onWindowState(cb: (state: WindowState) => void): () => void
   onConversationMeta(cb: (id: string, meta: ConversationMeta, rev: number) => void): () => void
   onConversationItems(cb: (id: string, items: TranscriptItem[], rev: number) => void): () => void
@@ -378,4 +434,7 @@ export interface KumiApi {
   onConversationsChanged(cb: () => void): () => void
   /** Every review, whenever one changes. */
   onReviews(cb: (reviews: Review[]) => void): () => void
+  onBrowser(cb: (conversationId: string, state: BrowserState) => void): () => void
+  /** A JPEG frame of the active tab of a browser this window watches. */
+  onBrowserFrame(cb: (conversationId: string, tabId: string, jpeg: Uint8Array, width: number, height: number) => void): () => void
 }

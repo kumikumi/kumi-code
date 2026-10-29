@@ -328,12 +328,13 @@ button.stop { background: var(--bg-active); }
 .relay-reply { border-left: 2px solid var(--border); padding-left: 10px; }
 .relay-note { font-size: 13px; }
 
-.review-panel {
-  position: relative; flex: none; min-width: 280px; max-width: calc(100% - 400px); display: flex; flex-direction: column;
-  border-left: 1px solid var(--border); background: var(--strip); overflow-wrap: anywhere;
+.dock {
+  position: relative; flex: none; max-width: calc(100% - 400px); display: flex; flex-direction: column;
+  border-left: 1px solid var(--border); background: var(--strip);
 }
-.review-resize { position: absolute; top: 0; bottom: 0; left: -4px; width: 7px; z-index: 3; cursor: col-resize; }
-.review-resize:hover, .review-resize.active, .review-resize:focus-visible { background: linear-gradient(to right, transparent 3px, var(--accent) 3px, var(--accent) 5px, transparent 5px); outline: none; }
+.dock-resize { position: absolute; top: 0; bottom: 0; left: -4px; width: 7px; z-index: 3; cursor: col-resize; }
+.dock-resize:hover, .dock-resize.active, .dock-resize:focus-visible { background: linear-gradient(to right, transparent 3px, var(--accent) 3px, var(--accent) 5px, transparent 5px); outline: none; }
+.review-panel { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow-wrap: anywhere; }
 .review-progress { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .review-head { flex: none; display: flex; align-items: center; gap: 8px; padding: 8px 8px 8px 14px; border-bottom: 1px solid var(--border); font-size: 12.5px; white-space: nowrap; }
 .review-head button { flex: none; }
@@ -363,3 +364,33 @@ button.stop { background: var(--bg-active); }
 .review-actions { display: flex; gap: 8px; }
 .review-current .status-line { margin: 0; }
 .kbd { opacity: 0.7; font-size: 11px; margin-left: 4px; }
+.pane-on { background: var(--bg-active); color: var(--text-strong); }
+
+/* ---- browser ---- */
+.browser-pane { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.browser-tabs { flex: none; display: flex; align-items: center; gap: 2px; padding: 6px 6px 0 10px; min-width: 0; }
+.browser-tab { display: flex; align-items: center; min-width: 0; max-width: 180px; border-radius: 6px 6px 0 0; }
+.browser-tab.active { background: var(--bg); }
+.browser-tab-title {
+  flex: 1; min-width: 0; padding: 4px 4px 4px 8px; background: transparent; font-size: 12px; color: var(--muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left;
+}
+.browser-tab.active .browser-tab-title { color: var(--text-strong); }
+.browser-tab-title:hover { background: transparent; }
+.browser-tab-close { flex: none; width: 18px; height: 18px; padding: 0; margin-right: 4px; border-radius: 50%; background: transparent; color: var(--faint); font-size: 14px; line-height: 16px; }
+.browser-tab-close:hover { background: var(--bg-active); }
+.browser-loading { display: inline-block; width: 8px; height: 8px; margin-right: 6px; border-radius: 50%; border: 1.5px solid var(--faint); border-top-color: var(--accent); animation: spin 0.8s linear infinite; }
+.browser-bar { flex: none; display: flex; align-items: center; gap: 4px; padding: 6px 8px; background: var(--bg); flex-wrap: wrap; }
+.browser-bar + .browser-bar { padding-top: 0; }
+.browser-url { font-family: var(--mono); font-size: 12px; padding: 4px 8px; }
+.browser-viewport select { font-size: 12px; padding: 2px 4px; }
+.viewport-size { width: 64px; font-size: 12px; padding: 3px 6px; }
+.browser-activity { flex: none; display: flex; align-items: center; gap: 8px; padding: 4px 12px; font-size: 12px; color: var(--text); background: var(--bg-raised); border-bottom: 1px solid var(--border); }
+.browser-activity-dot { display: inline-block; width: 7px; height: 7px; margin-left: 6px; border-radius: 50%; background: var(--accent); animation: pulse 1.2s ease-in-out infinite; }
+.browser-activity .browser-activity-dot { margin-left: 0; }
+.browser-error { padding: 4px 12px; }
+.browser-view { flex: 1; min-height: 0; position: relative; background: #0f1115; }
+.browser-view canvas { position: absolute; inset: 0; margin: auto; max-width: 100%; max-height: 100%; background: #fff; outline: none; }
+.browser-view canvas:focus { box-shadow: 0 0 0 1px var(--faint); }
+.browser-empty { padding: 24px; color: var(--faint); text-align: center; font-size: 13px; }
+

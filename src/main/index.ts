@@ -5,7 +5,7 @@ import { getAuthStatus } from '../core/auth'
 import { listConversations, recentProjects } from '../core/sessions'
 import { Store } from '../core/store'
 import { IPC } from '@shared/types'
-import type { EffortLevel, ImageData, PermissionMode, RequestResponse, TabStripGeometry } from '@shared/types'
+import type { BrowserAction, BrowserInput, EffortLevel, ImageData, PermissionMode, RequestResponse, TabStripGeometry } from '@shared/types'
 import { TabDrag } from './drag'
 import { Workspace } from './workspace'
 
@@ -68,6 +68,14 @@ app.whenReady().then(() => {
   ipcMain.handle(IPC.relayFinding, (e, reviewId: string, rank: number, note: string) => workspace.relayFinding(win(e), reviewId, rank, note))
   ipcMain.handle(IPC.setFindingClosed, (_e, reviewId: string, rank: number, closed: boolean) => workspace.setFindingClosed(reviewId, rank, closed))
   ipcMain.handle(IPC.endReview, (_e, reviewId: string) => workspace.endReview(reviewId))
+
+  ipcMain.handle(IPC.getBrowser, (_e, id: string) => workspace.browserState(id))
+  ipcMain.handle(IPC.browserAction, (_e, id: string, action: BrowserAction) => workspace.browserAction(id, action))
+  ipcMain.on(IPC.browserInput, (_e, id: string, tabId: string, input: BrowserInput) => workspace.browserInput(id, tabId, input))
+  ipcMain.on(IPC.watchBrowser, (e, id: string, watching: boolean) => workspace.watchBrowser(e.sender.id, id, watching))
+
+  // The end-to-end tests drive the browser tools without a model.
+  if (import.meta.env.MODE === 'e2e') Object.assign(globalThis, { kumiWorkspace: workspace })
 
   Menu.setApplicationMenu(buildMenu(workspace))
   workspace.restore()

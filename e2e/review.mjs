@@ -56,13 +56,14 @@ check((await current()).startsWith('1.'), 'the panel starts at the first finding
 
 // The panel's left edge resizes it.
 const panelWidth = (locator) => locator.evaluate((el) => Math.round(el.getBoundingClientRect().width))
-const before = await panelWidth(panel)
-const edge = await panel.locator('.review-resize').boundingBox()
+const dock = page.locator('.tab-pane:not([hidden]) .dock')
+const before = await panelWidth(dock)
+const edge = await dock.locator('.dock-resize').boundingBox()
 await page.mouse.move(edge.x + edge.width / 2, edge.y + 200)
 await page.mouse.down()
 await page.mouse.move(edge.x + edge.width / 2 - 120, edge.y + 200, { steps: 6 })
 await page.mouse.up()
-const widened = await panelWidth(panel)
+const widened = await panelWidth(dock)
 check(widened === before + 120, `dragging the panel's edge widens it (${before} → ${widened} px)`)
 check((await page.evaluate(() => localStorage.getItem('reviewPanelWidth'))) === String(widened), 'the width is remembered')
 
@@ -98,7 +99,7 @@ await page.screenshot({ path: `${shots}/review-reviewer.png` })
 
 await page.locator('.tab-pane:not([hidden]) .review-head').getByRole('button', { name: /Implementer/ }).click()
 await waitUntil(page, 'the implementer tab shows', async () => (await activeTab()).conversationId === implementer)
-check((await panelWidth(page.locator('.tab-pane:not([hidden]) .review-panel'))) === widened, "the implementer's panel has the same width")
+check((await panelWidth(page.locator('.tab-pane:not([hidden]) .dock'))) === widened, "the implementer's panel has the same width")
 const relays = page.locator('.tab-pane:not([hidden]) .item.relay')
 check((await relays.count()) === 1, 'the implementer transcript shows the relayed finding as a card')
 check((await relays.first().innerText()).includes('Keep it an arrow function.'), "the relay card shows the user's note")

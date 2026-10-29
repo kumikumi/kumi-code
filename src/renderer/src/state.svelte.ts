@@ -1,7 +1,7 @@
 // Renderer-side state: this window's tabs, the conversations they show and every
 // code review, kept in sync with the main process through its events.
 
-import type { ConversationMeta, Review, TranscriptItem, UsageWindow, WindowState } from '@shared/types'
+import type { BrowserState, ConversationMeta, Review, TranscriptItem, UsageWindow, WindowState } from '@shared/types'
 import { errorMessage } from './util'
 
 export const api = window.kumi
@@ -41,10 +41,18 @@ export class Conversation {
   meta = $state.raw<ConversationMeta | null>(null)
   items = $state.raw<TranscriptItem[]>([])
   error = $state<string | null>(null)
+  /** The conversation's browser; null until it is known. */
+  browser = $state.raw<BrowserState | null>(null)
   rev = 0
   /** Events that arrived before the snapshot; null once it is loaded. */
   buffered: Event[] | null = []
   private readonly index = new Map<string, number>()
+  private browserReceived = false
+
+  setBrowser(state: BrowserState): void {
+    this.browserReceived = true
+    this.browser = state
+  }
 
   apply(event: Event): void {
     // After a failed load the view shows the error; later events have nothing to build on.
@@ -64,6 +72,12 @@ export class Conversation {
   }
 
   async load(id: string): Promise<void> {
+    void api.getBrowser(id).then(
+      (state) => {
+        if (!this.browserReceived) this.browser = state
+      },
+      (err: unknown) => (this.error = errorMessage(err)),
+    )
     try {
       const snapshot = await api.getConversation(id)
       this.rev = snapshot.rev
@@ -107,3 +121,4 @@ function receive(id: string, event: Event): void {
 
 api.onConversationMeta((id, meta, rev) => receive(id, { kind: 'meta', meta, rev }))
 api.onConversationItems((id, items, rev) => receive(id, { kind: 'items', items, rev }))
+api.onBrowser((id, state) => conversations.get(id)?.setBrowser(state))

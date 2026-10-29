@@ -11,6 +11,8 @@ const kumi = {
   onUsage: () => () => {},
   onReviews: () => () => {},
   listReviews: () => new Promise(() => {}),
+  onBrowser: () => () => {},
+  getBrowser: () => new Promise(() => {}),
   onConversationMeta: (cb: typeof emit.meta) => ((emit.meta = cb), () => {}),
   onConversationItems: (cb: typeof emit.items) => ((emit.items = cb), () => {}),
   getConversation,

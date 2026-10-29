@@ -56,6 +56,12 @@ export function summarizeTool(name: string, input: Record<string, unknown>, cwd:
     case 'mcp__kumi__resolve_finding':
       return { label: 'Resolve finding', detail: `${String(input.finding)} · ${input.verdict === 'accept' ? 'accepted' : 'reopened'}` }
   }
+  const browser = /^mcp__browser__(.+)$/.exec(name)?.[1]
+  if (browser) {
+    const what = browser === 'computer' ? str(input.action).replace(/_/g, ' ') : browser.replace(/_/g, ' ')
+    const target = str(input.action_summary) || str(input.url) || str(input.query) || str(input.name) || str(input.ref) || str(input.serverId)
+    return { label: 'Browser', detail: target ? `${what} · ${target}` : what }
+  }
   const mcp = /^mcp__(.+?)__(.+)$/.exec(name)
   return { label: mcp ? `${mcp[1]} › ${mcp[2]}` : name, detail: firstString(input) }
 }

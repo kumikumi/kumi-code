@@ -8,21 +8,41 @@
 // when the tab closes or after it has sat idle for a while.
 //
 // Code reviews link two conversations; relaying a finding to a conversation that
-// is not open opens it in a new tab.
+// is not open opens it in a new tab. Each open conversation may have a browser
+// (browser.ts), which closes with it.
 
-import { BrowserWindow, screen, shell } from 'electron'
+import { BrowserWindow, screen, shell, webContents } from 'electron'
 import { randomUUID } from 'node:crypto'
-import type { Rectangle } from 'electron'
+import type { Rectangle, WebContents } from 'electron'
 import { deleteSession, renameSession } from '@anthropic-ai/claude-agent-sdk'
 import { Conversation } from '../core/conversation'
-import type { ConversationSettings } from '../core/conversation'
+import type { ConversationSettings, ToolAccess } from '../core/conversation'
+import { keyOf } from '../core/keys'
+import { Previews } from '../core/previews'
 import { Reviews } from '../core/review'
 import type { ReviewAnswer } from '../core/review'
-import { reviewServers } from '../core/review-tools'
+import { REVIEW_TOOLS, reviewServers } from '../core/review-tools'
 import { createScratchFolder, projectName } from '../core/sessions'
 import type { Store, StoredWindow } from '../core/store'
 import { IPC } from '@shared/types'
-import type { ConversationSnapshot, ConversationStatus, DragHover, Review, TabInfo, TabStatus, TabStripGeometry, UsageWindow, WindowState } from '@shared/types'
+import type {
+  BrowserAction,
+  BrowserInput,
+  BrowserState,
+  ConversationSnapshot,
+  ConversationStatus,
+  DragHover,
+  Review,
+  TabInfo,
+  TabStatus,
+  TabStripGeometry,
+  UsageWindow,
+  WindowState,
+} from '@shared/types'
+import { isLocalUrl, normalizeUrl, originOf } from '../core/urls'
+import { Browser } from './browser'
+import { BROWSER_TOOLS_ALLOWED, browserServers, runTool } from './browser-tools'
+import type { BrowserToolContext } from './browser-tools'
 
 export interface Tab {
   id: string
@@ -56,9 +76,15 @@ export class Workspace {
   private readonly closedConversations: string[] = []
   private readonly reviews: Reviews
   /** Each open conversation's review roles, as its MCP servers last got them. */
-  private readonly reviewRoles = new Map<string, string>()
+  private readonly toolRoles = new Map<string, string>()
   /** Each open conversation's last status, to see its turns end. */
   private readonly lastStatus = new Map<string, ConversationStatus>()
+  private readonly browsers = new Map<string, Browser>()
+  /** The renderers (web contents ids) that show each conversation's browser. */
+  private readonly browserWatchers = new Map<string, Set<number>>()
+  /** Dev server configurations the user let each conversation start without asking. */
+  private readonly allowedPreviews = new Map<string, Set<string>>()
+  private readonly previews = new Previews()
   private usage: UsageWindow | null = null
   private quitting = false
 
@@ -110,7 +136,9 @@ export class Workspace {
     win.on('resize', () => this.persistLayout())
     win.on('move', () => this.persistLayout())
     win.on('focus', () => this.activate(entry))
+    const contentsId = win.webContents.id
     win.on('closed', () => {
+      for (const id of this.browserWatchers.keys()) this.watchBrowser(contentsId, id, false)
       this.windows.delete(win.id)
       for (const tab of entry.tabs) this.releaseTab(tab)
       // The last window's layout stays saved, so the next launch restores it.
@@ -129,6 +157,8 @@ export class Workspace {
     this.opts.store.flush()
     this.quitting = true
     for (const conversation of this.conversations.values()) void conversation.stop()
+    for (const browser of this.browsers.values()) browser.destroy()
+    this.previews.stopAll()
   }
 
   winOf(win: BrowserWindow | null): Win {
@@ -380,7 +410,7 @@ export class Workspace {
     this.reviews.sent(reviewId, rank, relay.to, note)
     try {
       const conversation = this.openInTab(entry, relay.conversationId, false)
-      await this.syncReviewTools(relay.conversationId)
+      await this.syncTools(relay.conversationId)
       await conversation.relay(relay.text)
     } catch (err) {
       this.reviews.unanswered(reviewId, rank)
@@ -401,7 +431,7 @@ export class Workspace {
       s.reviews = this.reviews.toJSON()
     })
     for (const id of this.conversations.keys()) {
-      this.syncReviewTools(id).catch((err: unknown) => console.error(`Giving conversation ${id} its review tools failed:`, err))
+      this.syncTools(id).catch((err: unknown) => console.error(`Giving conversation ${id} its tools failed:`, err))
     }
     this.broadcast(IPC.evReviews, this.reviews.list())
   }
@@ -418,17 +448,176 @@ export class Workspace {
     return reply
   }
 
-  /** Gives a conversation the review tools of the roles it has. */
-  private async syncReviewTools(id: string): Promise<void> {
+  /** Gives a conversation Kumi Code's tools: the browser's, and the review tools of the roles it has. */
+  private async syncTools(id: string): Promise<void> {
     const conversation = this.conversations.get(id)
     const roles = this.reviews.roles(id)
-    if (!conversation || this.reviewRoles.get(id) === roles.join()) return
-    this.reviewRoles.set(id, roles.join())
+    if (!conversation || this.toolRoles.get(id) === roles.join()) return
+    this.toolRoles.set(id, roles.join())
     try {
-      await conversation.setMcpServers(() => reviewServers(roles, (answer) => this.answer(id, answer)))
+      await conversation.setMcpServers(() => ({ ...reviewServers(roles, (answer) => this.answer(id, answer)), ...browserServers(this.browserContext(id)) }))
     } catch (err) {
-      this.reviewRoles.delete(id)
+      this.toolRoles.delete(id)
       throw err
+    }
+  }
+
+  // ---- browsers ----
+
+  /** The conversation's browser; no tabs when it has none. */
+  browserState(id: string): BrowserState {
+    return this.browsers.get(id)?.state() ?? { tabs: [], activeTabId: null, activity: null }
+  }
+
+  /** What the user does in the browser pane. Pages the user opens, the agent may open too. */
+  async browserAction(id: string, action: BrowserAction): Promise<void> {
+    const browser = this.browserOf(id)
+    switch (action.kind) {
+      case 'navigate': {
+        const url = normalizeUrl(action.url)
+        browser.allowedOrigins.add(originOf(url))
+        const tab = browser.list().length > 0 ? browser.tab() : await browser.create(true)
+        await tab.navigate(url)
+        return
+      }
+      case 'back':
+      case 'forward':
+        await browser.tab(action.tabId).history(action.kind)
+        return
+      case 'reload':
+        await browser.tab(action.tabId).reload()
+        return
+      case 'select':
+        browser.select(action.tabId)
+        return
+      case 'close':
+        browser.close(action.tabId)
+        return
+      case 'devtools':
+        browser.tab(action.tabId).devtools()
+        return
+      case 'newTab':
+        await browser.create(true)
+        return
+      case 'viewport':
+        await browser.tab(action.tabId).setViewport(action.viewport)
+        return
+    }
+  }
+
+  /** The user's mouse and keyboard on a tab. */
+  browserInput(id: string, tabId: string, input: BrowserInput): void {
+    const tab = this.browsers.get(id)?.list().find((t) => t.id === tabId)
+    if (!tab) return
+    const sent = (p: Promise<void>): void => {
+      p.catch(() => {
+        // Input to a tab that closes meanwhile goes nowhere.
+      })
+    }
+    if (input.type === 'mouse') {
+      const type = input.action === 'down' ? 'mousePressed' : input.action === 'up' ? 'mouseReleased' : 'mouseMoved'
+      sent(tab.mouse(type, input.x, input.y, input.button, input.clickCount, input.modifiers))
+    } else if (input.type === 'wheel') {
+      sent(tab.wheel(input.x, input.y, input.deltaX, input.deltaY, input.modifiers))
+    } else {
+      const press = keyOf(input.key, input.modifiers) ?? { key: input.key, code: input.code, keyCode: input.keyCode, text: '', modifiers: input.modifiers, commands: [] }
+      sent(tab.key({ ...press, code: input.code || press.code, keyCode: input.keyCode || press.keyCode }, input.action))
+    }
+  }
+
+  /** Whether a renderer shows the conversation's browser: frames go only to those that do. */
+  watchBrowser(contentsId: number, id: string, watching: boolean): void {
+    const watchers = this.browserWatchers.get(id) ?? new Set<number>()
+    if (watching) watchers.add(contentsId)
+    else watchers.delete(contentsId)
+    if (watchers.size > 0) this.browserWatchers.set(id, watchers)
+    else this.browserWatchers.delete(id)
+    this.browsers.get(id)?.setWatched(watchers.size > 0)
+  }
+
+  /** Runs a browser tool for a conversation, as its agent would. */
+  browserTool(id: string, name: string, input: Record<string, unknown>): ReturnType<typeof runTool> {
+    return runTool(this.browserContext(id), name, input)
+  }
+
+  private browserOf(id: string): Browser {
+    let browser = this.browsers.get(id)
+    if (!browser) {
+      browser = new Browser({
+        state: (state) => {
+          const found = this.findTab(id)
+          if (found && !found.entry.win.isDestroyed()) found.entry.win.webContents.send(IPC.evBrowser, id, state)
+        },
+        frame: (tabId, jpeg, width, height) => {
+          for (const contentsId of this.browserWatchers.get(id) ?? []) {
+            const contents: WebContents | undefined = webContents.fromId(contentsId)
+            if (contents && !contents.isDestroyed()) contents.send(IPC.evBrowserFrame, id, tabId, jpeg, width, height)
+          }
+        },
+      })
+      browser.setWatched(this.browserWatchers.has(id))
+      this.browsers.set(id, browser)
+    }
+    return browser
+  }
+
+  private browserContext(id: string): BrowserToolContext {
+    return {
+      browser: () => this.browserOf(id),
+      existing: () => this.browsers.get(id) ?? null,
+      cwd: this.opts.store.get().conversations[id]?.cwd ?? '',
+      previews: this.previews,
+      allows: (tool, input) => this.browserAllows(id, tool, input),
+    }
+  }
+
+  /** The tool access of a conversation: Kumi Code's own tools, and pages that need no asking. */
+  private toolAccess(id: string): ToolAccess {
+    return {
+      allowedTools: [...REVIEW_TOOLS, ...BROWSER_TOOLS_ALLOWED],
+      allows: (tool, input) => this.browserAllows(id, tool, input),
+      allowed: (tool, input) => this.browserAllowed(id, tool, input),
+    }
+  }
+
+  /**
+   * Whether a browser tool call may run without asking: opening a local page or one
+   * the user allowed in this conversation, running JavaScript on one, or starting a
+   * dev server the user let it start before.
+   */
+  private browserAllows(id: string, tool: string, input: Record<string, unknown>): boolean {
+    const browser = this.browsers.get(id)
+    const allowedUrl = (url: string): boolean => isLocalUrl(url) || (browser?.allowedOrigins.has(originOf(url)) ?? false)
+    const text = (value: unknown): string => (typeof value === 'string' ? value : '')
+    switch (tool) {
+      case 'mcp__browser__navigate': {
+        const url = text(input.url)
+        return url === 'back' || url === 'forward' || allowedUrl(normalizeUrl(url))
+      }
+      case 'mcp__browser__preview_start':
+        return text(input.url) ? allowedUrl(normalizeUrl(text(input.url))) : (this.allowedPreviews.get(id)?.has(text(input.name)) ?? false)
+      case 'mcp__browser__javascript_tool': {
+        const tab = browser?.list().find((t) => t.id === text(input.tabId)) ?? (browser && browser.state().activeTabId ? browser.tab() : undefined)
+        // Without a tab the call fails by itself; nothing to ask about.
+        return !tab || allowedUrl(tab.url())
+      }
+      default:
+        return false
+    }
+  }
+
+  private browserAllowed(id: string, tool: string, input: Record<string, unknown>): void {
+    const text = (value: unknown): string => (typeof value === 'string' ? value : '')
+    if ((tool === 'mcp__browser__navigate' || tool === 'mcp__browser__preview_start') && text(input.url) && !['back', 'forward'].includes(text(input.url))) {
+      this.browserOf(id).allowedOrigins.add(originOf(normalizeUrl(text(input.url))))
+    } else if (tool === 'mcp__browser__preview_start' && text(input.name)) {
+      const names = this.allowedPreviews.get(id) ?? new Set<string>()
+      names.add(text(input.name))
+      this.allowedPreviews.set(id, names)
+    } else if (tool === 'mcp__browser__javascript_tool') {
+      const browser = this.browsers.get(id)
+      const tab = browser?.list().find((t) => t.id === text(input.tabId)) ?? (browser?.state().activeTabId ? browser.tab() : undefined)
+      if (tab) this.browserOf(id).allowedOrigins.add(originOf(tab.url()))
     }
   }
 
@@ -481,10 +670,10 @@ export class Workspace {
         }
         this.broadcast(IPC.evConversationsChanged)
       },
-    })
+    }, this.toolAccess(id))
     this.conversations.set(id, conversation)
     // Before its process starts, so the process gets them.
-    this.syncReviewTools(id).catch((err: unknown) => console.error(`Giving conversation ${id} its review tools failed:`, err))
+    this.syncTools(id).catch((err: unknown) => console.error(`Giving conversation ${id} its tools failed:`, err))
     void conversation.load().then(
       () => this.tabChanged(id),
       (err: unknown) => console.error(`Loading conversation ${id} failed:`, err),
@@ -509,8 +698,12 @@ export class Workspace {
     void this.conversations.get(tab.conversationId)?.stop()
     this.conversations.delete(tab.conversationId)
     this.revs.delete(tab.conversationId)
-    this.reviewRoles.delete(tab.conversationId)
+    this.toolRoles.delete(tab.conversationId)
     this.lastStatus.delete(tab.conversationId)
+    this.browsers.get(tab.conversationId)?.destroy()
+    this.browsers.delete(tab.conversationId)
+    this.browserWatchers.delete(tab.conversationId)
+    this.allowedPreviews.delete(tab.conversationId)
   }
 
   private findTab(conversationId: string): { entry: Win; tab: Tab } | undefined {

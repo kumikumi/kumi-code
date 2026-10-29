@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { IPC } from '@shared/types'
-import type { ConversationMeta, DragHover, KumiApi, Review, TranscriptItem, UsageWindow, WindowState } from '@shared/types'
+import type { BrowserState, ConversationMeta, DragHover, KumiApi, Review, TranscriptItem, UsageWindow, WindowState } from '@shared/types'
 
 function on<T extends unknown[]>(channel: string, cb: (...args: T) => void): () => void {
   const listener = (_e: Electron.IpcRendererEvent, ...args: unknown[]): void => cb(...(args as T))
@@ -41,6 +41,10 @@ const api: KumiApi = {
   relayFinding: (reviewId, rank, note) => ipcRenderer.invoke(IPC.relayFinding, reviewId, rank, note),
   setFindingClosed: (reviewId, rank, closed) => ipcRenderer.invoke(IPC.setFindingClosed, reviewId, rank, closed),
   endReview: (reviewId) => ipcRenderer.invoke(IPC.endReview, reviewId),
+  getBrowser: (id) => ipcRenderer.invoke(IPC.getBrowser, id),
+  browserAction: (id, action) => ipcRenderer.invoke(IPC.browserAction, id, action),
+  browserInput: (id, tabId, input) => ipcRenderer.send(IPC.browserInput, id, tabId, input),
+  watchBrowser: (id, watching) => ipcRenderer.send(IPC.watchBrowser, id, watching),
   onWindowState: (cb) => on<[WindowState]>(IPC.evWindowState, cb),
   onConversationMeta: (cb) => on<[string, ConversationMeta, number]>(IPC.evConversationMeta, cb),
   onConversationItems: (cb) => on<[string, TranscriptItem[], number]>(IPC.evConversationItems, cb),
@@ -48,6 +52,8 @@ const api: KumiApi = {
   onDragHover: (cb) => on<[DragHover | null]>(IPC.evDragHover, cb),
   onConversationsChanged: (cb) => on<[]>(IPC.evConversationsChanged, cb),
   onReviews: (cb) => on<[Review[]]>(IPC.evReviews, cb),
+  onBrowser: (cb) => on<[string, BrowserState]>(IPC.evBrowser, cb),
+  onBrowserFrame: (cb) => on<[string, string, Uint8Array, number, number]>(IPC.evBrowserFrame, cb),
 }
 
 contextBridge.exposeInMainWorld('kumi', api)
