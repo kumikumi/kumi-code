@@ -109,6 +109,14 @@ describe('Reviews', () => {
     expect(review.findings[0]).toMatchObject({ status: 'implementing', stalled: true })
   })
 
+  it('counts findings that were with an agent when Kumi Code quit as unanswered', () => {
+    const { reviews } = started()
+    reviews.sent('tu1', 1, 'implementer', '')
+    const restarted = new Reviews(reviews.toJSON(), () => {})
+    expect(restarted.list()[0]?.findings[0]).toMatchObject({ status: 'implementing', stalled: true })
+    expect(restarted.relay('tu1', 1, '').to).toBe('implementer')
+  })
+
   it('keeps one review per conversation and role', () => {
     const { reviews } = started()
     reviews.start('tu2', 'rev2', 'impl', report)

@@ -30,6 +30,10 @@ export class Reviews {
     private readonly onChange: () => void,
   ) {
     this.reviews = new Map(Object.entries(stored))
+    // No Claude Code process outlives Kumi Code: when it starts, no agent is working on a finding.
+    for (const r of this.reviews.values()) {
+      for (const f of r.findings) if (f.status === 'implementing' || f.status === 'verifying') f.stalled = true
+    }
   }
 
   list(): Review[] {

@@ -184,8 +184,9 @@ What the code does, precisely. `README.md` is the short version.
   an optional note. The implementer's answer goes to the reviewer as soon as it is given, from
   the tool call; the user sends a fixed or pushed-back finding only when that failed or when
   they reopen one they closed in that state. A finding is with its agent from the moment it is
-  sent: one whose message could not be delivered, or whose agent ended a turn (running →
-  anything else) without answering, is *stalled* and can be sent again. Sending to a
+  sent: one whose message could not be delivered, whose agent ended a turn (running →
+  anything else) without answering, or that was with an agent when Kumi Code last quit, is
+  *stalled* and can be sent again. Sending to a
   conversation no tab shows opens it in a new tab after the active one (for the implementer's
   answer: after the implementer's tab).
 - A relayed message is a user message: `<kumi-review>`, one line of JSON (`RelayMessage`: the
