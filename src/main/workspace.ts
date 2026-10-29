@@ -31,6 +31,7 @@ export interface Win {
 }
 
 const IDLE_STOP_MS = 15 * 60_000
+const EXIT_TIMEOUT_MS = 10_000
 const DEFAULT_SIZE = { width: 1100, height: 820 }
 const DEFAULT_SETTINGS: ConversationSettings = { model: null, effort: null, permissionMode: 'default' }
 
@@ -115,7 +116,7 @@ export class Workspace {
     if (this.windows.size > 0) this.persistLayout()
     this.opts.store.flush()
     this.quitting = true
-    for (const conversation of this.conversations.values()) conversation.stop()
+    for (const conversation of this.conversations.values()) void conversation.stop()
   }
 
   winOf(win: BrowserWindow | null): Win {
@@ -312,9 +313,12 @@ export class Workspace {
   }
 
   async deleteConversation(id: string): Promise<void> {
-    // Claude Code must not write to the transcript after it is gone. The tab
-    // closes last: closing a window's only tab closes the window.
-    this.conversations.get(id)?.stop()
+    // Claude Code writes to the transcript until its process has exited (the
+    // turn it was in, cost totals, the title), which would bring the file back.
+    // The SDK force-kills a stopped process after about 2 s.
+    const conversation = this.conversations.get(id)
+    if (conversation) await withTimeout(conversation.stop(), EXIT_TIMEOUT_MS, 'Claude Code did not exit; the conversation was not deleted')
+    // The tab closes last: closing a window's only tab closes the window.
     const cwd = this.opts.store.get().conversations[id]?.cwd
     await deleteSession(id, cwd ? { dir: cwd } : undefined)
     this.opts.store.update((s) => {
@@ -382,7 +386,7 @@ export class Workspace {
 
   private releaseTab(tab: Tab): void {
     if (!tab.conversationId || this.findTab(tab.conversationId)) return
-    this.conversations.get(tab.conversationId)?.stop()
+    void this.conversations.get(tab.conversationId)?.stop()
     this.conversations.delete(tab.conversationId)
     this.revs.delete(tab.conversationId)
   }
@@ -399,7 +403,7 @@ export class Workspace {
     const now = Date.now()
     for (const conversation of this.conversations.values()) {
       const since = conversation.idleSince
-      if (since !== null && now - since > IDLE_STOP_MS) conversation.stop()
+      if (since !== null && now - since > IDLE_STOP_MS) void conversation.stop()
     }
   }
 
@@ -462,6 +466,14 @@ export class Workspace {
       s.windows = windows
     })
   }
+}
+
+function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+  let timer: NodeJS.Timeout | undefined
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(message)), ms)
+  })
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer))
 }
 
 /** Stored bounds, unless they would put the window off every display. */

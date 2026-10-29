@@ -47,11 +47,11 @@
     box.style.height = 'auto'
     box.style.height = `${Math.min(box.scrollHeight, window.innerHeight * 0.4)}px`
   })
-  $effect(() => {
-    const draft = text
-    const timer = setTimeout(() => api.setDraft(meta.id, draft), 300)
-    return () => clearTimeout(timer)
-  })
+  // Every change goes to the main process at once, so a tab moved to another
+  // window, whose composer starts from the main process's copy, loses nothing.
+  // svelte-ignore state_referenced_locally
+  const conversationId = meta.id
+  $effect(() => api.setDraft(conversationId, text))
 
   function run(p: Promise<unknown>): void {
     error = null

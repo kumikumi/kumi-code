@@ -1,4 +1,4 @@
-// Starts a project-less conversation and sends a message; checks commands load and tabs reorder.
+// Starts a project-less conversation, answers a permission prompt, and checks the reply, commands and tabs.
 import { check, deleteConversations, launch, newUserData, shots, waitForReply } from './launch.mjs'
 
 const { app, page } = await launch(newUserData())
@@ -9,9 +9,18 @@ check(true, 'model list loaded')
 await page.locator('.composer textarea').fill('/comp')
 await page.waitForTimeout(300)
 check((await page.locator('.suggestions li').allInnerTexts()).some((t) => t.startsWith('/compact')), 'slash command completion offers /compact')
-await page.locator('.composer textarea').fill('Reply with just the word OK')
+await page.locator('.composer textarea').fill('Use the Write tool to create ok.txt containing OK, then reply with just the word OK.')
 await page.keyboard.press('Enter')
+await page.waitForSelector('.request.permission', { timeout: 120000 })
+check((await page.locator('.request-title').innerText()) === 'Allow Write?', 'Write asks for permission')
+// What the user typed in the card survives meta updates, here a change of effort.
+await page.locator('.request input.grow').fill('a note')
+await page.locator('.composer-bar select').nth(2).selectOption({ index: 1 })
+await page.waitForTimeout(500)
+check((await page.locator('.request input.grow').inputValue()) === 'a note', 'a permission card keeps its input across meta updates')
+await page.locator('.request button.primary', { hasText: 'Allow' }).click()
 await waitForReply(page, 1)
+check((await page.locator('.item.tool .tool-label').allInnerTexts()).includes('Write'), 'the allowed Write shows as a tool card')
 const reply = (await page.locator('.transcript .item.text').allInnerTexts()).at(-1) ?? ''
 check(reply.includes('OK'), `Claude replies (${JSON.stringify(reply.slice(0, 40))})`)
 check(/\d+% context/.test(await page.locator('.composer-bar').innerText()), 'the context meter shows')

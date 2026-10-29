@@ -11,6 +11,8 @@
 
 import { getSessionInfo, getSessionMessages, query } from '@anthropic-ai/claude-agent-sdk'
 import type { CanUseTool, Options, PermissionResult, PermissionUpdate, Query, SDKMessage, SDKRateLimitInfo, SDKUserMessage } from '@anthropic-ai/claude-agent-sdk'
+import { spawn } from 'node:child_process'
+import type { ChildProcess } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import type {
   ConversationMeta,
@@ -70,6 +72,8 @@ export class Conversation {
   private stderr: string[] = []
   private lastActivity = Date.now()
   private interrupting = false
+  /** Settles when the last Claude Code process this conversation started has exited. */
+  private exited: Promise<void> = Promise.resolve()
   /** The failed request reported in this turn, so the turn's result does not repeat it. */
   private lastError: string | null = null
   /** Context the last main-thread request used, in tokens, and its model. */
@@ -213,8 +217,12 @@ export class Conversation {
     this.emitMeta()
   }
 
-  /** Ends the Claude Code process. Pending requests are denied; the transcript stays. */
-  stop(): void {
+  /**
+   * Ends the Claude Code process. Pending requests are denied; the transcript
+   * stays. Resolves once the process has exited: until then it may still write
+   * to the transcript (the turn it was in, cost totals, the title).
+   */
+  stop(): Promise<void> {
     for (const pending of this.pending.values()) pending.resolve({ behavior: 'deny', message: 'The conversation was closed.', interrupt: true })
     this.pending.clear()
     this.meta.requests = []
@@ -227,6 +235,7 @@ export class Conversation {
     this.transcript.endStreams()
     this.flush()
     this.emitMeta()
+    return this.exited
   }
 
   private async spawn(): Promise<void> {
@@ -248,9 +257,15 @@ export class Conversation {
       includePartialMessages: true,
       thinking: { type: 'adaptive', display: 'summarized' },
       env: agentEnvironment(),
-      stderr: (data) => {
-        this.stderr.push(data)
-        if (this.stderr.length > 50) this.stderr.shift()
+      // Kumi Code starts the process itself to know when it has exited.
+      spawnClaudeCodeProcess: ({ command, args, cwd, env, signal }) => {
+        const child = spawn(command, args, { cwd, env, signal, stdio: ['pipe', 'pipe', 'pipe'] })
+        child.stderr.on('data', (data: Buffer) => {
+          this.stderr.push(String(data))
+          if (this.stderr.length > 50) this.stderr.shift()
+        })
+        this.exited = exitOf(child)
+        return child
       },
     }
     if (this.meta.model) options.model = this.meta.model
@@ -563,6 +578,10 @@ function fiveHourWindow(info: SDKRateLimitInfo): UsageWindow | null {
   const five = unified?.five_hour
   if (!five || typeof five.utilization !== 'number') return null
   return { utilization: Math.round(five.utilization * 100), resetsAt: typeof five.resetsAt === 'number' ? five.resetsAt * 1000 : null, updatedAt: Date.now() }
+}
+
+function exitOf(child: ChildProcess): Promise<void> {
+  return new Promise((resolve) => child.once('exit', () => resolve()))
 }
 
 function textOf(message: unknown): string {

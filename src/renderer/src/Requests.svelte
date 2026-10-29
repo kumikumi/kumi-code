@@ -10,15 +10,17 @@
   let { conversationId, requests, cwd, supportsAuto }: { conversationId: string; requests: PendingRequest[]; cwd: string; supportsAuto: boolean } = $props()
 
   const request = $derived(requests[0])
+  const requestId = $derived(request?.id)
   let note = $state('')
   let error = $state<string | null>(null)
   /** Per question: the picked option labels and the typed answer. */
   let picked = $state<string[][]>([])
   let other = $state<string[]>([])
 
-  // A new request starts with an empty form.
+  // A new request starts with an empty form. Only its id counts: every meta
+  // update brings a new copy of the same request.
   $effect.pre(() => {
-    void request?.id
+    void requestId
     note = ''
     picked = []
     other = []

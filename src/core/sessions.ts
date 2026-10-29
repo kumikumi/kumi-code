@@ -69,9 +69,9 @@ async function withLastActivity(sessions: SDKSessionInfo[]): Promise<{ session: 
   const files = await transcriptFiles()
   const result = await Promise.all(
     sessions.map(async (session) => {
+      // A session deleted between listing it and reading the folder is gone.
       const file = files.get(session.sessionId)
-      if (!file) throw new Error(`No transcript file for session ${session.sessionId}`)
-      const lastActive = await lastMessageTime(file)
+      const lastActive = file ? await lastMessageTime(file).catch(unlessDeleted) : null
       return lastActive === null ? [] : [{ session, lastActive }]
     }),
   )
@@ -114,6 +114,11 @@ export async function lastMessageTime(path: string): Promise<number | null> {
   } finally {
     await file.close()
   }
+}
+
+function unlessDeleted(err: unknown): null {
+  if ((err as NodeJS.ErrnoException).code === 'ENOENT') return null
+  throw err
 }
 
 function messageTime(line: string): number | null {

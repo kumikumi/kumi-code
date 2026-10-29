@@ -2,6 +2,7 @@
 // in sync with the main process through its events.
 
 import type { ConversationMeta, TranscriptItem, UsageWindow, WindowState } from '@shared/types'
+import { errorMessage } from './util'
 
 export const api = window.kumi
 
@@ -38,7 +39,8 @@ export class Conversation {
   private readonly index = new Map<string, number>()
 
   apply(event: Event): void {
-    if (event.rev <= this.rev) return
+    // After a failed load the view shows the error; later events have nothing to build on.
+    if (this.error !== null || event.rev <= this.rev) return
     this.rev = event.rev
     if (event.kind === 'meta') {
       this.meta = event.meta
@@ -62,7 +64,7 @@ export class Conversation {
       snapshot.items.forEach((item, i) => this.index.set(item.id, i))
       for (const event of this.buffered ?? []) this.apply(event)
     } catch (err) {
-      this.error = err instanceof Error ? err.message : String(err)
+      this.error = errorMessage(err)
     }
     this.buffered = null
   }

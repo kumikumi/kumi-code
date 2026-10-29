@@ -48,8 +48,10 @@ What the code does, precisely. `README.md` is the short version.
   `skills: 'all'`; `permissionMode` from the conversation's settings;
   `allowDangerouslySkipPermissions: true` (so bypass can be chosen mid-session);
   `includePartialMessages: true`; `thinking: { type: 'adaptive', display: 'summarized' }`;
-  `model`/`effort` when set; `canUseTool`; `env: agentEnvironment()`; stderr is kept (last 50
-  chunks) for error messages.
+  `model`/`effort` when set; `canUseTool`; `env: agentEnvironment()`; `spawnClaudeCodeProcess`:
+  Kumi Code starts the process itself (`child_process.spawn` with the SDK's command, arguments,
+  folder, environment and abort signal) to know when it has exited, and keeps the last 50 chunks
+  of its stderr for error messages.
 - After `initializationResult()` the meta carries the model list (value, name, efforts, auto mode
   support) and the slash commands (Claude Code's own, skills, plugins, custom commands).
 - Status: `cold` (no process) → `starting` → `idle` ⇄ `running`; `error` when the process fails
@@ -57,7 +59,9 @@ What the code does, precisely. `README.md` is the short version.
   ends a turn unless `queued_turn_count > 0`; stream or assistant output while idle (a turn Claude
   Code started by itself) sets `running`.
 - The process starts when its tab is first shown (and on send), and stops when its tab closes,
-  after 15 minutes idle with no pending request, or on quit.
+  after 15 minutes idle with no pending request, or on quit. Stopping closes its input; Claude
+  Code then finishes writing the transcript (the turn it was in, cost totals, the title) and
+  exits, and the SDK force-kills it after about 2 s. `stop()` resolves when it has exited.
 - Settings (model, effort, permission mode) are stored per conversation and applied live:
   `setModel`, `applyFlagSettings({ effortLevel })`, `setPermissionMode`. Mode changes Claude Code
   reports (`init`, `status`) are adopted.
@@ -94,7 +98,8 @@ What the code does, precisely. `README.md` is the short version.
   items, throttled to 40 ms, with a per-conversation revision number. A renderer fetches a snapshot
   (with its revision) when it first shows a conversation and ignores older events. It keeps the
   items as raw (unproxied) Svelte state and replaces the changed ones, so rows of unchanged items
-  are left alone.
+  are left alone. If the snapshot cannot be fetched, the view shows the error and ignores the
+  conversation's later events.
 - Markdown: `marked` (GitHub-flavoured) to HTML, sanitized with DOMPurify (it is model output).
   Code blocks get a language label and a copy button, and are highlighted with Shiki (JavaScript
   regex engine, `github-dark-default`) once the text stops streaming. Links open in the browser.
@@ -113,6 +118,10 @@ What the code does, precisely. `README.md` is the short version.
   new tab page or one conversation; a conversation is in at most one tab (opening it again
   switches to that tab).
 - The renderer of a window draws its tab strip and keeps a conversation's view mounted once shown.
+- A conversation's unsent draft lives in the main process: the composer sends every change at
+  once, so a tab moved to another window, whose composer starts from that copy, keeps all of it.
+- A pending request's form (a permission note, question answers, plan feedback) is cleared only
+  when a request with another id takes its place, not when the conversation's meta updates.
 - Shortcuts: ⌘T new tab, ⌘N new window, ⌘W close tab, ⇧⌘W close window, ⇧⌘T reopen closed
   conversation tab, ⌘1–8 tab n, ⌘9 last tab, ⌃Tab / ⌃⇧Tab and ⇧⌘] / ⇧⌘[ next / previous tab.
   Middle click closes a tab. Closing a window's only tab closes the window.
@@ -136,7 +145,8 @@ What the code does, precisely. `README.md` is the short version.
 - Recency is the time of a session's last message: the timestamp of the last `user` or
   `assistant` record of its transcript (`~/.claude/projects/*/<id>.jsonl`, read from the end).
   Not the file's modification time: Claude Code appends bookkeeping records (cost totals, tool
-  latches) whenever a process for the session exits. Sessions without a message are left out.
+  latches) whenever a process for the session exits. Sessions without a message are left out, and
+  so are sessions deleted between listing them and reading their file.
 - *New conversation*: recent projects (Kumi Code's own recents, then the folders of other Claude
   Code sessions by their last message; existing folders only, not under Kumi Code's scratch root
   or `~/Library/Application Support/`; at most 12), *Open folder…*, *No project* (a new folder
@@ -145,7 +155,9 @@ What the code does, precisely. `README.md` is the short version.
   this machine), most recently active first, grouped by local calendar date: Today, Yesterday,
   Previous 7 days, Previous 30 days, then by month (with the year when it is not this one). Each
   row shows the time this week and the date before. Search over title, project and folder keeps
-  the grouping. Rename; delete (with confirmation) removes the transcript with `deleteSession`.
+  the grouping. Rename; delete (with confirmation) stops the conversation's process and waits
+  until it has exited (an error after 10 s), so it cannot write the file back, then removes the
+  transcript with `deleteSession` and closes the conversation's tab.
   Opening a session from elsewhere adds it to Kumi Code's conversations.
 
 ## State
