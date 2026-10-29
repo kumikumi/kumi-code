@@ -17,6 +17,11 @@ A barebones Claude Code frontend. TypeScript, Electron, Svelte and Anthropic's C
 - **Tabs and windows**: every tab is a conversation or a new tab page. Tabs reorder by dragging,
   move between windows by dragging onto another window's tab strip, and tear off into a new
   window by dragging them out. Windows and their tabs come back when the app restarts.
+- **Code review**: a reviewer conversation's `ReportFindings` call links to the conversation
+  that wrote the code. Kumi Code relays the findings the user sends to the implementer (which
+  fixes each or pushes back) and each answer straight on to the reviewer (which accepts or
+  reopens it); the agents answer through Kumi Code's own tools. The user picks which finding
+  goes next and can close any finding with a click.
 - **New tab page**: past conversations (those started in Kumi Code, or every Claude Code session
   on this machine with the toggle) and a new conversation in a recent project, a picked folder
   or no project.
@@ -44,5 +49,5 @@ tests; `bun run e2e` builds the app (with an unminified UI, `--mode e2e`) and dr
 a few short messages to Claude Haiku on your subscription, and never touches the real mouse).
 
 Kumi Code's own state (windows, tabs, recent projects, which conversations it started and their
-settings) lives in `~/Library/Application Support/Kumi Code/state.json`; project-less
+settings, code reviews) lives in `~/Library/Application Support/Kumi Code/state.json`; project-less
 conversations get folders under `~/Library/Application Support/Kumi Code/scratch/`.

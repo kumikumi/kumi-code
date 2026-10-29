@@ -12,12 +12,17 @@ What the code does, precisely. `README.md` is the short version.
   - `auth.ts` — login status via the bundled CLI (`claude auth status`).
   - `environment.ts` — the environment Claude Code processes run with.
   - `input-queue.ts` — the streaming input of a `query()`.
+  - `review.ts` — `Reviews`: code review loops, and the relayed messages' format.
+  - `review-tools.ts` — Kumi Code's MCP server with the agents' review tools.
 - `src/main/` — Electron main process: `workspace.ts` (windows, tabs, open conversations),
   `drag.ts` (tabs dragged out of a strip), `index.ts` (IPC, menu, startup).
 - `src/preload/` — the `window.kumi` bridge (`KumiApi` in `src/shared/types.ts`).
+- `src/shared/` — `types.ts` (everything that crosses IPC), `review.ts` (review rules the main
+  process and the renderer share).
 - `src/renderer/` — Svelte 5 UI: `App.svelte` (a window), `TabStrip.svelte`, `NewTabPage.svelte`,
   `Conversation.svelte`, `Item.svelte` (a transcript item), `ToolInput.svelte`, `Requests.svelte`,
-  `Composer.svelte`, `Rich.svelte` (markdown or a code block), `Todos.svelte`; `state.svelte.ts`
+  `Composer.svelte`, `Rich.svelte` (markdown or a code block), `Todos.svelte`, `FindingsCard.svelte`,
+  `FindingDetails.svelte`, `RelayCard.svelte`, `ReviewPanel.svelte`; `state.svelte.ts`
   (window and conversation state), `markdown.ts`, `tools.ts`, `util.ts`.
 
 ## Auth
@@ -88,7 +93,7 @@ What the code does, precisely. `README.md` is the short version.
 
 ## Transcript
 
-- Items: `user` (text, images, `queued`), `text`, `thinking`, `tool` (name, input, `partialInput`
+- Items: `user` (text, images, `queued`, `relay` for a relayed review message), `text`, `thinking`, `tool` (name, input, `partialInput`
   while it streams, `result`, `children` = what a subagent started by it did), `compact`,
   `command_output`, `notice` (info or error).
 - Stream events create `text`/`thinking`/`tool` items and grow them; the complete assistant
@@ -161,15 +166,64 @@ What the code does, precisely. `README.md` is the short version.
   transcript with `deleteSession` and closes the conversation's tab.
   Opening a session from elsewhere adds it to Kumi Code's conversations.
 
+## Code review
+
+- A review links one `ReportFindings` call of a *reviewer* conversation to the *implementer*
+  conversation that wrote the code. Its id is the tool use id. A conversation is the implementer
+  of at most one review and the reviewer of at most one: starting a review replaces the reviews
+  either conversation has the same role in. A conversation cannot review itself.
+- Findings keep the reviewer's order (most severe first) as their rank, and the reviewer's fields:
+  file, line, short summary (the title; the summary when absent), summary, failure scenario,
+  category, verdict (`CONFIRMED`/`PLAUSIBLE`).
+- A finding's status: `open` → (sent) `implementing` → the implementer answers `fixed` or
+  `pushed_back` → (sent at once) `verifying` → the reviewer accepts (`resolved` after a fix,
+  `withdrawn` after a push-back) or reopens (`reopened` → sent back to the implementer). `closed`:
+  the user closed it, from any status; reopening returns it to that status. Resolved, withdrawn
+  and closed findings are settled.
+- The user picks any finding and sends it to the implementer (open and reopened findings), with
+  an optional note. The implementer's answer goes to the reviewer as soon as it is given, from
+  the tool call; the user sends a fixed or pushed-back finding only when that failed or when
+  they reopen one they closed in that state. A finding is with its agent from the moment it is
+  sent: one whose message could not be delivered, or whose agent ended a turn (running →
+  anything else) without answering, is *stalled* and can be sent again. Sending to a
+  conversation no tab shows opens it in a new tab after the active one (for the implementer's
+  answer: after the implementer's tab).
+- A relayed message is a user message: `<kumi-review>`, one line of JSON (`RelayMessage`: the
+  finding, the other agent's latest answer, the user's note), `</kumi-review>`, then instructions.
+  The implementer is told the reviewer has a fresh context and can be wrong, to check the claim,
+  fix it or push back, that the user's note outranks both agents, and to answer only when the
+  code is final, since the reviewer checks it at once. The reviewer is told the
+  implementer has context it lacks, to verify a fix or weigh a push-back, not to reopen only to
+  restate the finding, and not to change the code. The transcript shows these messages, live and
+  stored, as relay cards.
+- The agents answer with Kumi Code's tools, an in-process MCP server `kumi` (`alwaysLoad`):
+  `respond_to_finding({ finding, outcome: fixed | no_change_needed, reply })` for the implementer,
+  `resolve_finding({ finding, verdict: accept | reopen, reply })` for the reviewer. A conversation
+  gets the tools of the roles it has (at spawn, and with `setMcpServers` when its roles change);
+  `allowedTools` allows both without asking. An answer to a finding that is not waiting on that
+  agent is a tool error; one the user closed says so.
+- UI: a `ReportFindings` call shows as a findings card (ranked rows that expand to details, the
+  review's status per finding, and *Start review loop…*, which picks the implementer among Kumi
+  Code's conversations, this folder's first). A conversation in a review shows the review panel
+  beside the transcript: every finding with its status, *Close* / *Reopen* per row, and the
+  current finding (the one picked, else the first that can be sent) with its thread (each entry
+  headed by its speaker, colored by role), a note field and the send button (⌘↵). Sending a finding picks it; a picked finding that gets settled hands over to the next. *Reviewer* /
+  *Implementer* switches to the other conversation; *End* removes the review. The panel's left
+  edge resizes it (drag, or ← / → when focused; a double-click restores 340 px), between 280 px
+  and the window's width less 400 px. The width is shared by the panels of a window and kept in
+  the renderer's `localStorage` (`reviewPanelWidth`), not in the state file.
+- Deleting a conversation ends its reviews.
+
 ## State
 
 `<userData>/state.json` (`~/Library/Application Support/Kumi Code/`, or `KUMI_USER_DATA`), mode
-0600, written atomically 300 ms after a change and on quit: `{ version: 1, windows, conversations:
-{ [id]: { cwd, scratch, createdAt, model, effort, permissionMode } }, recents }`. Another version
-is an error. Transcripts live where Claude Code keeps them, under `~/.claude/projects/`.
+0600, written atomically 300 ms after a change and on quit: `{ version: 2, windows, conversations:
+{ [id]: { cwd, scratch, createdAt, model, effort, permissionMode } }, recents, reviews: { [id]:
+Review } }`. Another version is an error. Transcripts live where Claude Code keeps them, under `~/.claude/projects/`.
 
 ## Not yet
 
 Packaging (and with it a login-shell `PATH` for apps started from Finder), @-file mentions,
 rewind and fork, diff and git panels, a terminal, settings and MCP screens, worktrees,
-notifications, light theme, non-Anthropic models.
+notifications, light theme, non-Anthropic models. For code review: relaying without a click per
+step, starting a reviewer from the implementer, and review rounds after the fixes.

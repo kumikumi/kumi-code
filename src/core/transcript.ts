@@ -7,6 +7,7 @@
 // batch. New top-level items are only ever appended.
 
 import type { ImageData, TaskInfo, ToolResult, TranscriptItem } from '@shared/types'
+import { parseRelay } from './review'
 
 type ToolItem = Extract<TranscriptItem, { kind: 'tool' }>
 type TextItem = Extract<TranscriptItem, { kind: 'text' | 'thinking' }>
@@ -76,7 +77,13 @@ export class TranscriptBuilder {
   }
 
   addUser(id: string, text: string, images: ImageData[], queued: boolean): void {
-    this.add({ kind: 'user', id, text, images, queued }, null)
+    this.add({ kind: 'user', id, text, images, queued, relay: parseRelay(text) }, null)
+  }
+
+  /** The input of a tool call, at any depth. */
+  toolInput(id: string): { name: string; input: Record<string, unknown> } | undefined {
+    const tool = this.tools.get(id)
+    return tool && { name: tool.name, input: tool.input }
   }
 
   /** Marks queued user messages as delivered. */
@@ -253,7 +260,7 @@ export class TranscriptBuilder {
     const stored = classifyStoredUserText(text)
     switch (stored.kind) {
       case 'user':
-        this.add({ kind: 'user', id: uuid, text: stored.text, images, queued: false }, null)
+        this.addUser(uuid, stored.text, images, false)
         return
       case 'command_output':
         this.addCommandOutput(stored.text)

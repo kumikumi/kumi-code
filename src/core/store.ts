@@ -1,15 +1,15 @@
 // Kumi Code's own state: the window layout, which conversations were started (or
-// opened) in Kumi Code and with which settings, and recently used projects. The
-// conversations themselves live in Claude Code's session transcripts.
+// opened) in Kumi Code and with which settings, recently used projects, and code
+// reviews. The conversations themselves live in Claude Code's session transcripts.
 //
 // One JSON file, written atomically and debounced. A file from another version
 // is an error, not something to migrate.
 
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
-import type { EffortLevel, PermissionMode } from '@shared/types'
+import type { EffortLevel, PermissionMode, Review } from '@shared/types'
 
-const VERSION = 1
+const VERSION = 2
 const WRITE_DELAY_MS = 300
 
 export interface StoredBounds {
@@ -41,6 +41,7 @@ export interface StoredState {
   windows: StoredWindow[]
   conversations: Record<string, StoredConversation>
   recents: { path: string; lastUsed: number }[]
+  reviews: Record<string, Review>
 }
 
 export class Store {
@@ -77,7 +78,7 @@ function load(path: string): StoredState {
   try {
     raw = readFileSync(path, 'utf8')
   } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return { version: VERSION, windows: [], conversations: {}, recents: [] }
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return { version: VERSION, windows: [], conversations: {}, recents: [], reviews: {} }
     throw err
   }
   const parsed = JSON.parse(raw) as { version?: unknown }

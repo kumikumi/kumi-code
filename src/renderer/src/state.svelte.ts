@@ -1,12 +1,12 @@
-// Renderer-side state: this window's tabs and the conversations they show, kept
-// in sync with the main process through its events.
+// Renderer-side state: this window's tabs, the conversations they show and every
+// code review, kept in sync with the main process through its events.
 
-import type { ConversationMeta, TranscriptItem, UsageWindow, WindowState } from '@shared/types'
+import type { ConversationMeta, Review, TranscriptItem, UsageWindow, WindowState } from '@shared/types'
 import { errorMessage } from './util'
 
 export const api = window.kumi
 
-export const app = $state<{ window: WindowState | null; usage: UsageWindow | null }>({ window: null, usage: null })
+export const app = $state<{ window: WindowState | null; usage: UsageWindow | null; reviews: Review[] }>({ window: null, usage: null, reviews: [] })
 
 // Callbacks the main process calls return nothing: the context bridge clones a
 // return value back, and a Svelte state proxy cannot be cloned.
@@ -21,6 +21,14 @@ api.onUsage((usage) => {
 })
 void api.getUsage().then((usage) => {
   app.usage ??= usage
+})
+let reviewsReceived = false
+api.onReviews((reviews) => {
+  reviewsReceived = true
+  app.reviews = reviews
+})
+void api.listReviews().then((reviews) => {
+  if (!reviewsReceived) app.reviews = reviews
 })
 
 type Event = { kind: 'meta'; meta: ConversationMeta; rev: number } | { kind: 'items'; items: TranscriptItem[]; rev: number }

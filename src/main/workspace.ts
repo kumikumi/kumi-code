@@ -6,6 +6,9 @@
 // A conversation is open while at least one tab shows it, and at most one tab
 // does. Its Claude Code process starts when its tab is first shown and stops
 // when the tab closes or after it has sat idle for a while.
+//
+// Code reviews link two conversations; relaying a finding to a conversation that
+// is not open opens it in a new tab.
 
 import { BrowserWindow, screen, shell } from 'electron'
 import { randomUUID } from 'node:crypto'
@@ -13,10 +16,13 @@ import type { Rectangle } from 'electron'
 import { deleteSession, renameSession } from '@anthropic-ai/claude-agent-sdk'
 import { Conversation } from '../core/conversation'
 import type { ConversationSettings } from '../core/conversation'
+import { Reviews } from '../core/review'
+import type { ReviewAnswer } from '../core/review'
+import { reviewServers } from '../core/review-tools'
 import { createScratchFolder, projectName } from '../core/sessions'
 import type { Store, StoredWindow } from '../core/store'
 import { IPC } from '@shared/types'
-import type { ConversationSnapshot, DragHover, TabInfo, TabStatus, TabStripGeometry, UsageWindow, WindowState } from '@shared/types'
+import type { ConversationSnapshot, ConversationStatus, DragHover, Review, TabInfo, TabStatus, TabStripGeometry, UsageWindow, WindowState } from '@shared/types'
 
 export interface Tab {
   id: string
@@ -48,10 +54,16 @@ export class Workspace {
   private readonly conversations = new Map<string, Conversation>()
   private readonly revs = new Map<string, number>()
   private readonly closedConversations: string[] = []
+  private readonly reviews: Reviews
+  /** Each open conversation's review roles, as its MCP servers last got them. */
+  private readonly reviewRoles = new Map<string, string>()
+  /** Each open conversation's last status, to see its turns end. */
+  private readonly lastStatus = new Map<string, ConversationStatus>()
   private usage: UsageWindow | null = null
   private quitting = false
 
   constructor(private readonly opts: WorkspaceOptions) {
+    this.reviews = new Reviews(opts.store.get().reviews, () => this.reviewsChanged())
     setInterval(() => this.stopIdle(), 60_000).unref()
   }
 
@@ -324,6 +336,7 @@ export class Workspace {
     this.opts.store.update((s) => {
       delete s.conversations[id]
     })
+    this.reviews.removeConversation(id)
     const found = this.findTab(id)
     if (found) this.closeTab(found.entry, found.tab.id)
     this.broadcast(IPC.evConversationsChanged)
@@ -331,6 +344,108 @@ export class Workspace {
 
   get currentUsage(): UsageWindow | null {
     return this.usage
+  }
+
+  /** Switches to the conversation's tab, or opens it in a new tab of `entry`. */
+  showConversation(entry: Win, conversationId: string): void {
+    const found = this.findTab(conversationId)
+    if (found) {
+      this.activateTab(found.entry, found.tab.id)
+      found.entry.win.focus()
+      return
+    }
+    this.openInTab(entry, conversationId, true)
+  }
+
+  // ---- code reviews ----
+
+  reviewList(): Review[] {
+    return this.reviews.list()
+  }
+
+  startReview(reviewerId: string, toolUseId: string, implementerId: string): void {
+    const call = this.conversation(reviewerId).toolInput(toolUseId)
+    if (call?.name !== 'ReportFindings') throw new Error('No such ReportFindings call in the conversation')
+    if (!(implementerId in this.opts.store.get().conversations)) throw new Error(`Unknown conversation ${implementerId}`)
+    this.reviews.start(toolUseId, reviewerId, implementerId, call.input)
+  }
+
+  /**
+   * Sends a finding to the agent it waits on. The finding is with that agent from then on;
+   * when the message cannot be delivered, it is unanswered, to be sent again. A conversation
+   * that is not open opens in a new tab of `entry`.
+   */
+  async relayFinding(entry: Win, reviewId: string, rank: number, note: string): Promise<void> {
+    const relay = this.reviews.relay(reviewId, rank, note)
+    this.reviews.sent(reviewId, rank, relay.to, note)
+    try {
+      const conversation = this.openInTab(entry, relay.conversationId, false)
+      await this.syncReviewTools(relay.conversationId)
+      await conversation.relay(relay.text)
+    } catch (err) {
+      this.reviews.unanswered(reviewId, rank)
+      throw err
+    }
+  }
+
+  setFindingClosed(reviewId: string, rank: number, closed: boolean): void {
+    this.reviews.setClosed(reviewId, rank, closed)
+  }
+
+  endReview(reviewId: string): void {
+    this.reviews.end(reviewId)
+  }
+
+  private reviewsChanged(): void {
+    this.opts.store.update((s) => {
+      s.reviews = this.reviews.toJSON()
+    })
+    for (const id of this.conversations.keys()) {
+      this.syncReviewTools(id).catch((err: unknown) => console.error(`Giving conversation ${id} its review tools failed:`, err))
+    }
+    this.broadcast(IPC.evReviews, this.reviews.list())
+  }
+
+  /** An agent's answer through its review tool. The implementer's goes on to the reviewer at once. */
+  private answer(conversationId: string, answer: ReviewAnswer): string {
+    const reply = this.reviews.answer(conversationId, answer)
+    const review = answer.role === 'implementer' ? this.reviews.of(conversationId, 'implementer') : undefined
+    // The implementer answers from its tab, which a reviewer not open in one joins.
+    const entry = this.findTab(conversationId)?.entry
+    if (review && entry) {
+      this.relayFinding(entry, review.id, answer.finding, '').catch((err: unknown) => console.error(`Sending finding ${answer.finding} to the reviewer failed:`, err))
+    }
+    return reply
+  }
+
+  /** Gives a conversation the review tools of the roles it has. */
+  private async syncReviewTools(id: string): Promise<void> {
+    const conversation = this.conversations.get(id)
+    const roles = this.reviews.roles(id)
+    if (!conversation || this.reviewRoles.get(id) === roles.join()) return
+    this.reviewRoles.set(id, roles.join())
+    try {
+      await conversation.setMcpServers(() => reviewServers(roles, (answer) => this.answer(id, answer)))
+    } catch (err) {
+      this.reviewRoles.delete(id)
+      throw err
+    }
+  }
+
+  /** The conversation, in a new tab after the active one of `entry` if no tab shows it. */
+  private openInTab(entry: Win, conversationId: string, show: boolean): Conversation {
+    if (!this.findTab(conversationId)) {
+      if (!(conversationId in this.opts.store.get().conversations)) throw new Error(`Unknown conversation ${conversationId}`)
+      const tab = { id: randomUUID(), conversationId }
+      entry.tabs.splice(entry.tabs.findIndex((t) => t.id === entry.activeTabId) + 1, 0, tab)
+      this.openConversationObject(conversationId)
+      if (show) {
+        entry.activeTabId = tab.id
+        this.activate(entry)
+      }
+      this.changed(entry)
+    }
+    return this.conversation(conversationId)
   }
 
   private openConversationObject(id: string): Conversation {
@@ -341,6 +456,9 @@ export class Workspace {
     const settings = { model: stored.model, effort: stored.effort, permissionMode: stored.permissionMode }
     const conversation = new Conversation(id, stored.cwd, projectName(stored.cwd, this.opts.scratchRoot), settings, {
       onMeta: (meta) => {
+        const was = this.lastStatus.get(id)
+        this.lastStatus.set(id, meta.status)
+        if (was === 'running' && meta.status !== 'running') this.reviews.turnEnded(id)
         this.send(id, IPC.evConversationMeta, meta)
         this.tabChanged(id)
       },
@@ -365,6 +483,8 @@ export class Workspace {
       },
     })
     this.conversations.set(id, conversation)
+    // Before its process starts, so the process gets them.
+    this.syncReviewTools(id).catch((err: unknown) => console.error(`Giving conversation ${id} its review tools failed:`, err))
     void conversation.load().then(
       () => this.tabChanged(id),
       (err: unknown) => console.error(`Loading conversation ${id} failed:`, err),
@@ -389,6 +509,8 @@ export class Workspace {
     void this.conversations.get(tab.conversationId)?.stop()
     this.conversations.delete(tab.conversationId)
     this.revs.delete(tab.conversationId)
+    this.reviewRoles.delete(tab.conversationId)
+    this.lastStatus.delete(tab.conversationId)
   }
 
   private findTab(conversationId: string): { entry: Win; tab: Tab } | undefined {

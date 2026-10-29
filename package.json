@@ -12,14 +12,15 @@
     "preview": "electron-vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && svelte-check --tsgo --tsconfig tsconfig.web.json --fail-on-warnings",
     "test": "vitest run",
-    "e2e": "electron-vite build --mode e2e && node e2e/drag.mjs && node e2e/draft.mjs && node e2e/conversation.mjs && node e2e/restore.mjs && node e2e/delete.mjs && node e2e/rows.mjs"
+    "e2e": "electron-vite build --mode e2e && node e2e/drag.mjs && node e2e/draft.mjs && node e2e/conversation.mjs && node e2e/restore.mjs && node e2e/delete.mjs && node e2e/rows.mjs && node e2e/review.mjs"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "0.3.312",
     "diff": "^9.0.0",
     "dompurify": "3.4.17",
     "marked": "18.1.2",
-    "shiki": "^4.5.0"
+    "shiki": "^4.5.0",
+    "zod": "4.6.7"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "7.3.1",

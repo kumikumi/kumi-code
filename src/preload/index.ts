@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { IPC } from '@shared/types'
-import type { ConversationMeta, DragHover, KumiApi, TranscriptItem, UsageWindow, WindowState } from '@shared/types'
+import type { ConversationMeta, DragHover, KumiApi, Review, TranscriptItem, UsageWindow, WindowState } from '@shared/types'
 
 function on<T extends unknown[]>(channel: string, cb: (...args: T) => void): () => void {
   const listener = (_e: Electron.IpcRendererEvent, ...args: unknown[]): void => cb(...(args as T))
@@ -35,12 +35,19 @@ const api: KumiApi = {
   setEffort: (id, effort) => ipcRenderer.invoke(IPC.setEffort, id, effort),
   setPermissionMode: (id, mode) => ipcRenderer.invoke(IPC.setPermissionMode, id, mode),
   setDraft: (id, draft) => ipcRenderer.send(IPC.setDraft, id, draft),
+  showConversation: (id) => ipcRenderer.invoke(IPC.showConversation, id),
+  listReviews: () => ipcRenderer.invoke(IPC.listReviews),
+  startReview: (reviewerId, toolUseId, implementerId) => ipcRenderer.invoke(IPC.startReview, reviewerId, toolUseId, implementerId),
+  relayFinding: (reviewId, rank, note) => ipcRenderer.invoke(IPC.relayFinding, reviewId, rank, note),
+  setFindingClosed: (reviewId, rank, closed) => ipcRenderer.invoke(IPC.setFindingClosed, reviewId, rank, closed),
+  endReview: (reviewId) => ipcRenderer.invoke(IPC.endReview, reviewId),
   onWindowState: (cb) => on<[WindowState]>(IPC.evWindowState, cb),
   onConversationMeta: (cb) => on<[string, ConversationMeta, number]>(IPC.evConversationMeta, cb),
   onConversationItems: (cb) => on<[string, TranscriptItem[], number]>(IPC.evConversationItems, cb),
   onUsage: (cb) => on<[UsageWindow]>(IPC.evUsage, cb),
   onDragHover: (cb) => on<[DragHover | null]>(IPC.evDragHover, cb),
   onConversationsChanged: (cb) => on<[]>(IPC.evConversationsChanged, cb),
+  onReviews: (cb) => on<[Review[]]>(IPC.evReviews, cb),
 }
 
 contextBridge.exposeInMainWorld('kumi', api)

@@ -1,10 +1,11 @@
-<!-- A conversation: its transcript, task list, pending requests and the composer. -->
+<!-- A conversation: its transcript, task list, pending requests, the composer, and the review it is in. -->
 <script lang="ts">
   import Composer from './Composer.svelte'
   import Item from './Item.svelte'
   import Requests from './Requests.svelte'
+  import ReviewPanel from './ReviewPanel.svelte'
   import Todos from './Todos.svelte'
-  import { api, conversation } from './state.svelte'
+  import { api, app, conversation } from './state.svelte'
   import { errorMessage, tildify } from './util'
 
   let { id, visible }: { id: string; visible: boolean } = $props()
@@ -20,6 +21,7 @@
   let renaming = $state<string | null>(null)
   let renameError = $state<string | null>(null)
   let tasksOpen = $state(true)
+  let reviewOpen = $state(true)
 
   const meta = $derived(c.meta)
   // Rows get the folder as a string of its own: a new meta object (every meta
@@ -27,6 +29,8 @@
   const cwd = $derived(meta?.cwd ?? '')
   const tasks = $derived(meta?.tasks ?? [])
   const showTasks = $derived(tasks.some((t) => t.status !== 'completed'))
+  // The implementer's review comes first when the conversation is in two.
+  const review = $derived(app.reviews.find((r) => r.implementerId === id) ?? app.reviews.find((r) => r.reviewerId === id))
 
   // New output, or coming back into view: follow the bottom unless scrolled up.
   $effect(() => {
@@ -62,37 +66,43 @@
       {/if}
       <span class="project-label" title={meta.cwd}>{meta.project ?? 'No project'} <span class="muted">{tildify(meta.cwd)}</span></span>
       {#if renameError}<span class="notice error">{renameError}</span>{/if}
+      {#if review && !reviewOpen}<button class="ghost small" onclick={() => (reviewOpen = true)}>Review</button>{/if}
     </header>
-    <div
-      class="transcript"
-      bind:this={scroller}
-      onscroll={() => scroller && (stick = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < STICK_DISTANCE)}
-    >
-      <div class="transcript-inner">
-        {#if c.items.length === 0 && meta.status !== 'running'}<div class="empty">What should we work on?</div>{/if}
-        {#each c.items as item (item.id)}<Item {item} {cwd} />{/each}
-        {#if meta.compacting}<div class="status-line">Compacting conversation…</div>
-        {:else if meta.requests.length > 0}<div class="status-line">Waiting for you</div>
-        {:else if meta.status === 'running'}<div class="status-line working">Working…</div>
-        {:else if meta.status === 'starting'}<div class="status-line">Starting Claude Code…</div>{/if}
-      </div>
-    </div>
-    <div class="bottom">
-      {#if showTasks}
-        <div class="tasks">
-          <button class="tasks-head" onclick={() => (tasksOpen = !tasksOpen)}>
-            <span class="caret">{tasksOpen ? '▾' : '▸'}</span> Tasks {tasks.filter((t) => t.status === 'completed').length}/{tasks.length}
-          </button>
-          {#if tasksOpen}<Todos items={tasks.map((t) => ({ text: t.status === 'in_progress' ? t.activeForm : t.subject, status: t.status }))} />{/if}
+    <div class="conversation-body">
+      <div class="conversation-main">
+        <div
+          class="transcript"
+          bind:this={scroller}
+          onscroll={() => scroller && (stick = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < STICK_DISTANCE)}
+        >
+          <div class="transcript-inner">
+            {#if c.items.length === 0 && meta.status !== 'running'}<div class="empty">What should we work on?</div>{/if}
+            {#each c.items as item (item.id)}<Item {item} {cwd} conversationId={id} />{/each}
+            {#if meta.compacting}<div class="status-line">Compacting conversation…</div>
+            {:else if meta.requests.length > 0}<div class="status-line">Waiting for you</div>
+            {:else if meta.status === 'running'}<div class="status-line working">Working…</div>
+            {:else if meta.status === 'starting'}<div class="status-line">Starting Claude Code…</div>{/if}
+          </div>
         </div>
-      {/if}
-      <Requests
-        conversationId={meta.id}
-        requests={meta.requests}
-        cwd={meta.cwd}
-        supportsAuto={meta.models.find((m) => m.value === (meta.model ?? 'default'))?.supportsAutoMode === true}
-      />
-      <Composer {meta} {visible} />
+        <div class="bottom">
+          {#if showTasks}
+            <div class="tasks">
+              <button class="tasks-head" onclick={() => (tasksOpen = !tasksOpen)}>
+                <span class="caret">{tasksOpen ? '▾' : '▸'}</span> Tasks {tasks.filter((t) => t.status === 'completed').length}/{tasks.length}
+              </button>
+              {#if tasksOpen}<Todos items={tasks.map((t) => ({ text: t.status === 'in_progress' ? t.activeForm : t.subject, status: t.status }))} />{/if}
+            </div>
+          {/if}
+          <Requests
+            conversationId={meta.id}
+            requests={meta.requests}
+            cwd={meta.cwd}
+            supportsAuto={meta.models.find((m) => m.value === (meta.model ?? 'default'))?.supportsAutoMode === true}
+          />
+          <Composer {meta} {visible} />
+        </div>
+      </div>
+      {#if review && reviewOpen}<ReviewPanel {review} conversationId={id} {visible} onhide={() => (reviewOpen = false)} />{/if}
     </div>
   </div>
 {/if}

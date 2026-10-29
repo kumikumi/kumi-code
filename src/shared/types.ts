@@ -54,7 +54,8 @@ export interface ToolResult {
 }
 
 export type TranscriptItem =
-  | { kind: 'user'; id: string; text: string; images: ImageData[]; queued: boolean }
+  /** relay: the message is a review finding or answer Kumi Code relayed. */
+  | { kind: 'user'; id: string; text: string; images: ImageData[]; queued: boolean; relay: RelayMessage | null }
   | { kind: 'text'; id: string; text: string; streaming: boolean }
   | { kind: 'thinking'; id: string; text: string; streaming: boolean }
   | {
@@ -80,6 +81,77 @@ export interface TaskInfo {
   /** What the task is called while it is being worked on, e.g. "Running tests". */
   activeForm: string
   status: 'pending' | 'in_progress' | 'completed'
+}
+
+// ---- code review ----
+
+/** A finding as a reviewer reported it with Claude Code's ReportFindings tool. */
+export interface Finding {
+  /** Repository-relative. */
+  file: string
+  line: number | null
+  /** The reviewer's short label, or its summary when it gave none. */
+  title: string
+  summary: string
+  failureScenario: string
+  category: string | null
+  verdict: 'CONFIRMED' | 'PLAUSIBLE' | null
+}
+
+/**
+ * open: not sent yet. implementing: with the implementer. fixed, pushed_back:
+ * the implementer's answer, not yet sent to the reviewer. verifying: with the
+ * reviewer. reopened: the reviewer rejected the answer; not yet sent back.
+ * resolved: the reviewer accepted a fix. withdrawn: the reviewer accepted a
+ * push-back. closed: the user closed it.
+ */
+export type FindingStatus = 'open' | 'implementing' | 'fixed' | 'pushed_back' | 'verifying' | 'reopened' | 'resolved' | 'withdrawn' | 'closed'
+
+export type ReviewRole = 'implementer' | 'reviewer'
+
+export type ImplementerOutcome = 'fixed' | 'no_change_needed'
+export type ReviewerVerdict = 'accept' | 'reopen'
+
+/** An entry of a finding's thread: an agent's answer or a note the user sent with it. */
+export interface FindingReply {
+  from: ReviewRole | 'user'
+  /** null for the user's notes. */
+  outcome: ImplementerOutcome | ReviewerVerdict | null
+  text: string
+  at: number
+}
+
+export interface ReviewFinding extends Finding {
+  /** 1-based. The reviewer reports the most severe finding first. */
+  rank: number
+  status: FindingStatus
+  /** The agent it was sent to ended its turn without answering. */
+  stalled: boolean
+  /** The status the user closed it from, to go back to when reopened. */
+  closedFrom: FindingStatus | null
+  thread: FindingReply[]
+}
+
+/** One ReportFindings call of a reviewer conversation, linked to the conversation that wrote the code. */
+export interface Review {
+  /** The ReportFindings tool use. */
+  id: string
+  reviewerId: string
+  implementerId: string
+  createdAt: number
+  findings: ReviewFinding[]
+}
+
+/** What a relayed message carries, besides its instructions to the agent. */
+export interface RelayMessage {
+  to: ReviewRole
+  rank: number
+  /** How many findings the review has. */
+  of: number
+  finding: Finding
+  /** The other agent's answer that this message passes on. */
+  reply: FindingReply | null
+  note: string | null
 }
 
 // ---- requests the agent is waiting on ----
@@ -236,12 +308,19 @@ export const IPC = {
   setEffort: 'conversation:set-effort',
   setPermissionMode: 'conversation:set-permission-mode',
   setDraft: 'conversation:set-draft',
+  showConversation: 'conversation:show',
+  listReviews: 'review:list',
+  startReview: 'review:start',
+  relayFinding: 'review:relay',
+  setFindingClosed: 'review:set-closed',
+  endReview: 'review:end',
   evWindowState: 'ev:window',
   evConversationMeta: 'ev:conversation-meta',
   evConversationItems: 'ev:conversation-items',
   evUsage: 'ev:usage',
   evDragHover: 'ev:drag-hover',
   evConversationsChanged: 'ev:conversations-changed',
+  evReviews: 'ev:reviews',
 } as const
 
 export interface KumiApi {
@@ -279,10 +358,24 @@ export interface KumiApi {
   setEffort(conversationId: string, effort: EffortLevel | null): Promise<void>
   setPermissionMode(conversationId: string, mode: PermissionMode): Promise<void>
   setDraft(conversationId: string, draft: string): void
+  /** Switches to the conversation's tab, or opens it in a new tab of this window. */
+  showConversation(conversationId: string): Promise<void>
+  listReviews(): Promise<Review[]>
+  /**
+   * Links the findings of a ReportFindings call in `reviewerId` to the
+   * conversation that wrote the code. It replaces a review either is in.
+   */
+  startReview(reviewerId: string, toolUseId: string, implementerId: string): Promise<void>
+  /** Sends a finding to the agent it waits on, with the user's note (may be empty). */
+  relayFinding(reviewId: string, rank: number, note: string): Promise<void>
+  setFindingClosed(reviewId: string, rank: number, closed: boolean): Promise<void>
+  endReview(reviewId: string): Promise<void>
   onWindowState(cb: (state: WindowState) => void): () => void
   onConversationMeta(cb: (id: string, meta: ConversationMeta, rev: number) => void): () => void
   onConversationItems(cb: (id: string, items: TranscriptItem[], rev: number) => void): () => void
   onUsage(cb: (usage: UsageWindow) => void): () => void
   onDragHover(cb: (hover: DragHover | null) => void): () => void
   onConversationsChanged(cb: () => void): () => void
+  /** Every review, whenever one changes. */
+  onReviews(cb: (reviews: Review[]) => void): () => void
 }

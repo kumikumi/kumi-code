@@ -61,6 +61,13 @@ app.whenReady().then(() => {
   ipcMain.handle(IPC.setEffort, (_e, id: string, effort: EffortLevel | null) => workspace.conversation(id).setEffort(effort))
   ipcMain.handle(IPC.setPermissionMode, (_e, id: string, mode: PermissionMode) => workspace.conversation(id).setPermissionMode(mode))
   ipcMain.on(IPC.setDraft, (_e, id: string, draft: string) => workspace.conversation(id).setDraft(draft))
+  ipcMain.handle(IPC.showConversation, (e, id: string) => workspace.showConversation(win(e), id))
+
+  ipcMain.handle(IPC.listReviews, () => workspace.reviewList())
+  ipcMain.handle(IPC.startReview, (_e, reviewerId: string, toolUseId: string, implementerId: string) => workspace.startReview(reviewerId, toolUseId, implementerId))
+  ipcMain.handle(IPC.relayFinding, (e, reviewId: string, rank: number, note: string) => workspace.relayFinding(win(e), reviewId, rank, note))
+  ipcMain.handle(IPC.setFindingClosed, (_e, reviewId: string, rank: number, closed: boolean) => workspace.setFindingClosed(reviewId, rank, closed))
+  ipcMain.handle(IPC.endReview, (_e, reviewId: string) => workspace.endReview(reviewId))
 
   Menu.setApplicationMenu(buildMenu(workspace))
   workspace.restore()

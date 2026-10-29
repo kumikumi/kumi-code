@@ -82,7 +82,8 @@
     } else if (pick && e.key === 'Escape') {
       e.preventDefault()
       dismissedFor = text
-    } else if (e.key === 'Enter' && !e.shiftKey) {
+    } else if (e.key === 'Enter' && !e.shiftKey && !e.metaKey) {
+      // ⌘↵ is the review panel's.
       e.preventDefault()
       send()
     } else if (e.key === 'Escape' && running) {

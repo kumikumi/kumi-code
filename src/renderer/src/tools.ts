@@ -49,6 +49,12 @@ export function summarizeTool(name: string, input: Record<string, unknown>, cwd:
       return { label: 'Present plan', detail: '' }
     case 'AskUserQuestion':
       return { label: 'Ask', detail: '' }
+    case 'ReportFindings':
+      return { label: 'Review findings', detail: Array.isArray(input.findings) ? String(input.findings.length) : '' }
+    case 'mcp__kumi__respond_to_finding':
+      return { label: 'Answer finding', detail: `${String(input.finding)} · ${input.outcome === 'fixed' ? 'fixed' : 'no change needed'}` }
+    case 'mcp__kumi__resolve_finding':
+      return { label: 'Resolve finding', detail: `${String(input.finding)} · ${input.verdict === 'accept' ? 'accepted' : 'reopened'}` }
   }
   const mcp = /^mcp__(.+?)__(.+)$/.exec(name)
   return { label: mcp ? `${mcp[1]} › ${mcp[2]}` : name, detail: firstString(input) }

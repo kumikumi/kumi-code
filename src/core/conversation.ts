@@ -10,7 +10,7 @@
 // servers, hooks and permission rules apply as they do in the CLI.
 
 import { getSessionInfo, getSessionMessages, query } from '@anthropic-ai/claude-agent-sdk'
-import type { CanUseTool, Options, PermissionResult, PermissionUpdate, Query, SDKMessage, SDKRateLimitInfo, SDKUserMessage } from '@anthropic-ai/claude-agent-sdk'
+import type { CanUseTool, McpServerConfig, Options, PermissionResult, PermissionUpdate, Query, SDKMessage, SDKRateLimitInfo, SDKUserMessage } from '@anthropic-ai/claude-agent-sdk'
 import { spawn } from 'node:child_process'
 import type { ChildProcess } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
@@ -29,6 +29,7 @@ import type {
 import { loginCommand } from './auth'
 import { agentEnvironment } from './environment'
 import { InputQueue } from './input-queue'
+import { REVIEW_TOOLS } from './review-tools'
 import { TranscriptBuilder } from './transcript'
 import type { StoredMessage } from './transcript'
 
@@ -79,6 +80,8 @@ export class Conversation {
   /** Context the last main-thread request used, in tokens, and its model. */
   private contextTokens: number | null = null
   private contextModel: string | null = null
+  /** The MCP servers Kumi Code gives the agent; made anew for every process. */
+  private mcpServers: () => Record<string, McpServerConfig> = () => ({})
 
   constructor(
     readonly id: string,
@@ -146,12 +149,41 @@ export class Conversation {
     return this.starting
   }
 
+  /** Sends what the user wrote in the composer. */
   async send(text: string, images: ImageData[]): Promise<void> {
     await this.load()
     if (this.meta.title === UNTITLED && text.trim()) this.meta.title = firstLine(text)
+    this.meta.draft = ''
+    await this.deliver(text, images)
+  }
+
+  /** Sends a message Kumi Code wrote, such as a relayed review finding. The draft stays. */
+  async relay(text: string): Promise<void> {
+    await this.load()
+    await this.deliver(text, [])
+  }
+
+  /** Replaces the MCP servers Kumi Code gives the agent, at once if its process is running. */
+  async setMcpServers(make: () => Record<string, McpServerConfig>): Promise<void> {
+    this.mcpServers = make
+    const q = this.q
+    if (!q) return
+    try {
+      await q.setMcpServers(make())
+    } catch (err) {
+      // A process that stopped meanwhile gets them when it starts again.
+      if (this.q === q) throw err
+    }
+  }
+
+  /** The name and input of a tool call in the transcript. */
+  toolInput(id: string): { name: string; input: Record<string, unknown> } | undefined {
+    return this.transcript.toolInput(id)
+  }
+
+  private async deliver(text: string, images: ImageData[]): Promise<void> {
     const uuid = randomUUID()
     this.transcript.addUser(uuid, text, images, this.meta.status === 'running')
-    this.meta.draft = ''
     this.lastActivity = Date.now()
     this.flush()
     this.emitMeta()
@@ -254,6 +286,8 @@ export class Conversation {
       // Lets the user pick bypassPermissions from the mode menu mid-session.
       allowDangerouslySkipPermissions: true,
       canUseTool: this.canUseTool,
+      mcpServers: this.mcpServers(),
+      allowedTools: REVIEW_TOOLS,
       includePartialMessages: true,
       thinking: { type: 'adaptive', display: 'summarized' },
       env: agentEnvironment(),

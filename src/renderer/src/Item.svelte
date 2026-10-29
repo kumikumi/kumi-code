@@ -1,14 +1,16 @@
-<!-- One transcript item: a message, thinking, a tool call with its result, or a notice. -->
+<!-- One transcript item: a message, thinking, a tool call with its result, or a notice. Review findings and relayed review messages get cards of their own. -->
 <script lang="ts">
   import type { TranscriptItem } from '@shared/types'
+  import FindingsCard from './FindingsCard.svelte'
   import Item from './Item.svelte'
+  import RelayCard from './RelayCard.svelte'
   import Rich from './Rich.svelte'
   import Todos from './Todos.svelte'
   import ToolInput from './ToolInput.svelte'
   import { summarizeTool } from './tools'
   import { str } from './util'
 
-  let { item, cwd }: { item: TranscriptItem; cwd: string } = $props()
+  let { item, cwd, conversationId }: { item: TranscriptItem; cwd: string; conversationId: string } = $props()
 
   /** Long tool output is cut to this many characters until expanded. */
   const PREVIEW = 4000
@@ -25,7 +27,9 @@
   const lastChild = $derived(tool?.children.findLast((c) => c.kind === 'tool'))
 </script>
 
-{#if item.kind === 'user'}
+{#if item.kind === 'user' && item.relay}
+  <RelayCard relay={item.relay} queued={item.queued} />
+{:else if item.kind === 'user'}
   <div class={['item user', item.queued && 'queued']}>
     {#if item.images.length > 0}
       <div class="images">
@@ -45,6 +49,8 @@
     </button>
     {#if open}<div class="thinking-text">{item.text}</div>{/if}
   </div>
+{:else if tool?.name === 'ReportFindings'}
+  <FindingsCard {tool} {cwd} {conversationId} />
 {:else if tool?.name === 'TodoWrite'}
   <div class="item tool todo-card">
     <div class="tool-head static"><span class="tool-label">Todos</span></div>
@@ -73,7 +79,7 @@
         {/if}
         {#if isAgent && tool.children.length > 0}
           <div class="agent-children">
-            {#each tool.children as child (child.id)}<Item item={child} {cwd} />{/each}
+            {#each tool.children as child (child.id)}<Item item={child} {cwd} {conversationId} />{/each}
           </div>
         {/if}
         {#if tool.result && isAgent}
