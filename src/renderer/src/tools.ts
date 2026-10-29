@@ -49,6 +49,8 @@ export function summarizeTool(name: string, input: Record<string, unknown>, cwd:
       return { label: 'Present plan', detail: '' }
     case 'AskUserQuestion':
       return { label: 'Ask', detail: '' }
+    case 'mcp__ccd_turn__wrap_up':
+      return { label: 'Next step', detail: str(input.ask) || str(input.recap) }
     case 'ReportFindings':
       return { label: 'Review findings', detail: Array.isArray(input.findings) ? String(input.findings.length) : '' }
     case 'mcp__kumi__respond_to_finding':

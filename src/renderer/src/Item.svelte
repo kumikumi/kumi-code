@@ -1,6 +1,7 @@
 <!-- One transcript item: a message, thinking, a tool call with its result, or a notice. Review findings and relayed review messages get cards of their own. -->
 <script lang="ts">
   import type { TranscriptItem } from '@shared/types'
+  import { WRAP_UP_TOOL } from '@shared/wrap-up'
   import FindingsCard from './FindingsCard.svelte'
   import Item from './Item.svelte'
   import RelayCard from './RelayCard.svelte'
@@ -14,8 +15,8 @@
 
   /** Long tool output is cut to this many characters until expanded. */
   const PREVIEW = 4000
-  /** Task list tools show in the task list above the composer, not here. */
-  const TASK_TOOLS = ['TaskCreate', 'TaskUpdate', 'TaskList', 'TaskGet']
+  /** Task list tools show in the task list above the composer, and wrap_up in the next-step box, not here. */
+  const HIDDEN_TOOLS = ['TaskCreate', 'TaskUpdate', 'TaskList', 'TaskGet', WRAP_UP_TOOL]
 
   let open = $state(false)
   let full = $state(false)
@@ -56,7 +57,7 @@
     <div class="tool-head static"><span class="tool-label">Todos</span></div>
     <Todos items={(Array.isArray(tool.input.todos) ? tool.input.todos : []).map((t) => ({ text: str(t.content), status: str(t.status) }))} />
   </div>
-{:else if tool && summary && !(TASK_TOOLS.includes(tool.name) && !tool.result?.isError)}
+{:else if tool && summary && !(HIDDEN_TOOLS.includes(tool.name) && !tool.result?.isError)}
   <div class="item tool {toolState}">
     <button class="tool-head" onclick={() => (open = !open)}>
       <span class="tool-state {toolState}"></span>

@@ -38,8 +38,12 @@ export interface ConversationSettings {
   permissionMode: PermissionMode
 }
 
-/** Which tools run without asking, beyond the permission rules of Claude Code's settings. */
+/** What Kumi Code adds to Claude Code: its own tools, which tools run without asking, and instructions. */
 export interface ToolAccess {
+  /** Appended to Claude Code's system prompt. */
+  instructions: string
+  /** Kumi Code's MCP servers, made anew for every process. They stay the same while it runs. */
+  mcpServers(): Record<string, McpServerConfig>
   /** Always, so canUseTool never sees them. */
   allowedTools: string[]
   /** Whether a call that would ask may run without asking. */
@@ -89,8 +93,6 @@ export class Conversation {
   /** Context the last main-thread request used, in tokens, and its model. */
   private contextTokens: number | null = null
   private contextModel: string | null = null
-  /** The MCP servers Kumi Code gives the agent; made anew for every process. */
-  private mcpServers: () => Record<string, McpServerConfig> = () => ({})
 
   constructor(
     readonly id: string,
@@ -117,6 +119,7 @@ export class Conversation {
       requests: [],
       tasks: [],
       draft: '',
+      waiting: false,
     }
   }
 
@@ -173,25 +176,19 @@ export class Conversation {
     await this.deliver(text, [])
   }
 
-  /** Replaces the MCP servers Kumi Code gives the agent, at once if its process is running. */
-  async setMcpServers(make: () => Record<string, McpServerConfig>): Promise<void> {
-    this.mcpServers = make
-    const q = this.q
-    if (!q) return
-    try {
-      await q.setMcpServers(make())
-    } catch (err) {
-      // A process that stopped meanwhile gets them when it starts again.
-      if (this.q === q) throw err
-    }
-  }
-
   /** The name and input of a tool call in the transcript. */
   toolInput(id: string): { name: string; input: Record<string, unknown> } | undefined {
     return this.transcript.toolInput(id)
   }
 
+  /** The agent ended its turn asking something it waits for (a blocked wrap_up); the next message ends that. */
+  setWaiting(waiting: boolean): void {
+    this.meta.waiting = waiting
+    this.emitMeta()
+  }
+
   private async deliver(text: string, images: ImageData[]): Promise<void> {
+    this.meta.waiting = false
     const uuid = randomUUID()
     this.transcript.addUser(uuid, text, images, this.meta.status === 'running')
     this.lastActivity = Date.now()
@@ -290,14 +287,14 @@ export class Conversation {
     const options: Options = {
       cwd: this.cwd,
       tools: { type: 'preset', preset: 'claude_code' },
-      systemPrompt: { type: 'preset', preset: 'claude_code' },
+      systemPrompt: { type: 'preset', preset: 'claude_code', append: this.access.instructions },
       settingSources: ['user', 'project', 'local'],
       skills: 'all',
       permissionMode: this.meta.permissionMode,
       // Lets the user pick bypassPermissions from the mode menu mid-session.
       allowDangerouslySkipPermissions: true,
       canUseTool: this.canUseTool,
-      mcpServers: this.mcpServers(),
+      mcpServers: this.access.mcpServers(),
       allowedTools: this.access.allowedTools,
       includePartialMessages: true,
       thinking: { type: 'adaptive', display: 'summarized' },

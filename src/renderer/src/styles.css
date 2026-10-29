@@ -394,3 +394,8 @@ button.stop { background: var(--bg-active); }
 .browser-view canvas:focus { box-shadow: 0 0 0 1px var(--faint); }
 .browser-empty { padding: 24px; color: var(--faint); text-align: center; font-size: 13px; }
 
+/* ---- next step ---- */
+.next-step { margin: 16px 0 8px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg-raised); display: flex; flex-direction: column; gap: 8px; }
+.next-step-recap { color: var(--muted); font-size: 13px; }
+.next-step-ask { color: var(--text-strong); font-weight: 600; }
+.next-step-actions { display: flex; gap: 8px; flex-wrap: wrap; }

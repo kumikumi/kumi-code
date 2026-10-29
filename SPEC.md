@@ -13,7 +13,9 @@ What the code does, precisely. `README.md` is the short version.
   - `environment.ts` — the environment Claude Code processes run with.
   - `input-queue.ts` — the streaming input of a `query()`.
   - `review.ts` — `Reviews`: code review loops, and the relayed messages' format.
-  - `review-tools.ts` — Kumi Code's MCP server with the agents' review tools.
+  - `kumi-tools.ts` — Kumi Code's own MCP servers: `ccd_turn` (`wrap_up`) and `kumi` (the review
+    tools).
+  - `wrap-up.ts` — what a `wrap_up` call tells the agent.
   - `keys.ts` — key names and shortcuts → DevTools protocol key events.
   - `urls.ts` — local pages, typed URLs, origins, redaction.
   - `previews.ts` — `Previews`: dev servers from a project's `.claude/launch.json`.
@@ -23,12 +25,12 @@ What the code does, precisely. `README.md` is the short version.
   `browser` MCP server), `browser-page.ts` (the helper the tools run inside a page).
 - `src/preload/` — the `window.kumi` bridge (`KumiApi` in `src/shared/types.ts`).
 - `src/shared/` — `types.ts` (everything that crosses IPC), `review.ts` (review rules the main
-  process and the renderer share).
+  process and the renderer share), `wrap-up.ts` (reading a `wrap_up` call).
 - `src/renderer/` — Svelte 5 UI: `App.svelte` (a window), `TabStrip.svelte`, `NewTabPage.svelte`,
   `Conversation.svelte`, `Item.svelte` (a transcript item), `ToolInput.svelte`, `Requests.svelte`,
   `Composer.svelte`, `Rich.svelte` (markdown or a code block), `Todos.svelte`, `FindingsCard.svelte`,
   `FindingDetails.svelte`, `RelayCard.svelte`, `ReviewPanel.svelte`, `Dock.svelte` (the pane beside
-  the transcript), `BrowserPane.svelte`; `state.svelte.ts`
+  the transcript), `BrowserPane.svelte`, `NextStep.svelte`; `state.svelte.ts`
   (window and conversation state), `markdown.ts`, `tools.ts`, `util.ts`.
 
 ## Auth
@@ -203,12 +205,12 @@ What the code does, precisely. `README.md` is the short version.
   implementer has context it lacks, to verify a fix or weigh a push-back, not to reopen only to
   restate the finding, and not to change the code. The transcript shows these messages, live and
   stored, as relay cards.
-- The agents answer with Kumi Code's tools, an in-process MCP server `kumi` (`alwaysLoad`):
+- The agents answer with tools of Kumi Code's MCP server `kumi` (see Next step):
   `respond_to_finding({ finding, outcome: fixed | no_change_needed, reply })` for the implementer,
-  `resolve_finding({ finding, verdict: accept | reopen, reply })` for the reviewer. A conversation
-  gets the tools of the roles it has (at spawn, and with `setMcpServers` when its roles change);
-  `allowedTools` allows both without asking. An answer to a finding that is not waiting on that
-  agent is a tool error; one the user closed says so.
+  `resolve_finding({ finding, verdict: accept | reopen, reply })` for the reviewer. Every
+  conversation has both, loaded like all of `kumi`'s tools; a call
+  from a conversation that is not that review's implementer or reviewer, or about a finding that
+  is not waiting on that agent, is a tool error, and one about a finding the user closed says so.
 - UI: a `ReportFindings` call shows as a findings card (ranked rows that expand to details, the
   review's status per finding, and *Start review loop…*, which picks the implementer among Kumi
   Code's conversations, this folder's first). A conversation in a review shows the review panel
@@ -218,6 +220,32 @@ What the code does, precisely. `README.md` is the short version.
   the user picks another. *Reviewer* /
   *Implementer* switches to the other conversation; *End* removes the review.
 - Deleting a conversation ends its reviews.
+
+## Next step
+
+- Every conversation gets Kumi Code's in-process MCP servers `ccd_turn`, `kumi` and `browser`,
+  made for each Claude Code process and the same while it runs (Claude Code keeps a server it has
+  by its name, so swapping one mid-session would not change its tools). The tools of `ccd_turn`
+  and `kumi` are always loaded, so an agent has their schemas without a tool search, and are in
+  `allowedTools`.
+- `ccd_turn` serves `wrap_up`, so the agent sees `mcp__ccd_turn__wrap_up`: the Claude desktop app's
+  tool that fills the next-step box at the end of a turn, with its name, input schema (`recap`;
+  optional `ask`, `actions` of up to two buttons, `blocked`) and description. The description
+  leaves out the desktop app's sentence about its `update_plan` tool, which Kumi Code does not
+  have.
+- A section appended to Claude Code's system prompt (`KUMI_INSTRUCTIONS`) says when to call it, as
+  the desktop app's own instructions do: at the end of every turn that changed files, ran
+  commands or did multi-step work, before the closing message.
+- The result tells the agent whether the box shows its question. It refuses (a tool error) a
+  call without a recap, with app actions (`commit`, `create_pr`, … : Kumi Code has none), with
+  more than two buttons, with buttons but no `ask`, or with a button that starts with `/` or `!`
+  (it would run as a command). Fields that run long get advice for the next call.
+- The box: the last successful `wrap_up` call with an `ask` and no user message after it shows,
+  below the transcript, as its recap, its question and its reply buttons, the first as the
+  primary one. A click sends the button's `message` (its label when it has none) as the user's
+  message, which ends the box. A call without an `ask` draws no box. `wrap_up` calls do not show
+  in the transcript unless they fail. A `blocked` call marks the conversation as waiting
+  (`meta.waiting`): its tab shows the attention dot until the next message.
 
 ## Browser
 

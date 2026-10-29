@@ -3,7 +3,7 @@
 // conversation that wrote the code. When the user says so, Kumi Code relays a
 // finding to the implementer, which fixes it or pushes back; its answer goes on
 // to the reviewer at once, which accepts it or reopens the finding. The agents answer
-// through Kumi Code's own tools (review-tools.ts), so every answer is structured.
+// through Kumi Code's own tools (kumi-tools.ts), so every answer is structured.
 //
 // A relayed message starts with its data as one line of JSON in a <kumi-review>
 // block, followed by instructions for the agent, so a stored transcript shows it
@@ -48,10 +48,6 @@ export class Reviews {
   of(conversationId: string, role: ReviewRole): Review | undefined {
     for (const r of this.reviews.values()) if ((role === 'implementer' ? r.implementerId : r.reviewerId) === conversationId) return r
     return undefined
-  }
-
-  roles(conversationId: string): ReviewRole[] {
-    return (['implementer', 'reviewer'] as const).filter((role) => this.of(conversationId, role))
   }
 
   /**
@@ -218,7 +214,7 @@ function instructions(m: RelayMessage): string {
     return [
       `${intro} The reviewer is a separate agent that read the changes with a fresh context. It has not seen this conversation and can be wrong.${plausible}${note}`,
       'Check the claim against the code before you act. If it holds, fix it. If it does not, or a fix would be wrong for reasons the reviewer cannot see, leave the code as it is and push back with your reasons. Work on this finding only.',
-      `When you are done, call mcp__kumi__respond_to_finding once with finding ${m.rank}: outcome "fixed" and what you changed, or outcome "no_change_needed" and why. Kumi Code sends your answer to the reviewer at once, so call it only when the code is final.`,
+      `When you are done, call mcp__kumi__respond_to_finding once with finding ${m.rank}: outcome "fixed" and a reply saying what you changed, or outcome "no_change_needed" and a reply saying why. Kumi Code sends your answer to the reviewer at once, so call it only when the code is final.`,
     ].join('\n\n')
   }
   const fixed = m.reply?.outcome === 'fixed'
@@ -227,6 +223,6 @@ function instructions(m: RelayMessage): string {
     fixed
       ? 'Verify in the code that the fix is correct and complete, and that it breaks nothing nearby. Accept if it holds; reopen with what is still wrong if it does not.'
       : 'It has context you lack: the conversation in which the code was written. Check its reasons against the code. Accept if they answer your failure scenario; reopen with a specific reason if they do not. Do not reopen only to restate the finding.',
-    `Do not change the code yourself. Call mcp__kumi__resolve_finding once with finding ${m.rank}: verdict "accept" or "reopen", and your reason.`,
+    `Do not change the code yourself. Call mcp__kumi__resolve_finding once with finding ${m.rank}: verdict "accept" or "reopen", and your reason as the reply.`,
   ].join('\n\n')
 }

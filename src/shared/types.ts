@@ -265,6 +265,8 @@ export interface ConversationMeta {
   requests: PendingRequest[]
   tasks: TaskInfo[]
   draft: string
+  /** The agent waits for the user's answer to its next-step question (a blocked wrap_up). */
+  waiting: boolean
 }
 
 export interface ConversationSnapshot {

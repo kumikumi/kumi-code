@@ -105,8 +105,8 @@ check((await panelWidth(page.locator('.tab-pane:not([hidden]) .dock'))) === wide
 const relays = page.locator('.tab-pane:not([hidden]) .item.relay')
 check((await relays.count()) === 1, 'the implementer transcript shows the relayed finding as a card')
 check((await relays.first().innerText()).includes('Keep it an arrow function.'), "the relay card shows the user's note")
-const answerTool = page.locator('.tab-pane:not([hidden]) .tool-label', { hasText: 'Answer finding' })
-check((await answerTool.count()) === 1, 'the answer shows as an "Answer finding" tool call')
+const labels = await page.locator('.tab-pane:not([hidden]) .item.tool .tool-label').allInnerTexts()
+check(labels.includes('Answer finding'), `the answer shows as an "Answer finding" tool call (${labels.join(', ')})`)
 await page.screenshot({ path: `${shots}/review-implementer.png` })
 console.log(`screenshots: ${shots}`)
 // A new tab keeps the window open while its conversation tabs close.

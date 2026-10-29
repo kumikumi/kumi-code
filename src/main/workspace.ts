@@ -21,10 +21,12 @@ import { keyOf } from '../core/keys'
 import { Previews } from '../core/previews'
 import { Reviews } from '../core/review'
 import type { ReviewAnswer } from '../core/review'
-import { REVIEW_TOOLS, reviewServers } from '../core/review-tools'
+import { KUMI_INSTRUCTIONS, KUMI_TOOLS, kumiServers } from '../core/kumi-tools'
 import { createScratchFolder, projectName } from '../core/sessions'
+import { wrapUpResult } from '../core/wrap-up'
 import type { Store, StoredWindow } from '../core/store'
 import { IPC } from '@shared/types'
+import { parseWrapUp } from '@shared/wrap-up'
 import type {
   BrowserAction,
   BrowserInput,
@@ -76,7 +78,6 @@ export class Workspace {
   private readonly closedConversations: string[] = []
   private readonly reviews: Reviews
   /** Each open conversation's review roles, as its MCP servers last got them. */
-  private readonly toolRoles = new Map<string, string>()
   /** Each open conversation's last status, to see its turns end. */
   private readonly lastStatus = new Map<string, ConversationStatus>()
   private readonly browsers = new Map<string, Browser>()
@@ -409,9 +410,7 @@ export class Workspace {
     const relay = this.reviews.relay(reviewId, rank, note)
     this.reviews.sent(reviewId, rank, relay.to, note)
     try {
-      const conversation = this.openInTab(entry, relay.conversationId, false)
-      await this.syncTools(relay.conversationId)
-      await conversation.relay(relay.text)
+      await this.openInTab(entry, relay.conversationId, false).relay(relay.text)
     } catch (err) {
       this.reviews.unanswered(reviewId, rank)
       throw err
@@ -430,9 +429,6 @@ export class Workspace {
     this.opts.store.update((s) => {
       s.reviews = this.reviews.toJSON()
     })
-    for (const id of this.conversations.keys()) {
-      this.syncTools(id).catch((err: unknown) => console.error(`Giving conversation ${id} its tools failed:`, err))
-    }
     this.broadcast(IPC.evReviews, this.reviews.list())
   }
 
@@ -448,18 +444,11 @@ export class Workspace {
     return reply
   }
 
-  /** Gives a conversation Kumi Code's tools: the browser's, and the review tools of the roles it has. */
-  private async syncTools(id: string): Promise<void> {
-    const conversation = this.conversations.get(id)
-    const roles = this.reviews.roles(id)
-    if (!conversation || this.toolRoles.get(id) === roles.join()) return
-    this.toolRoles.set(id, roles.join())
-    try {
-      await conversation.setMcpServers(() => ({ ...reviewServers(roles, (answer) => this.answer(id, answer)), ...browserServers(this.browserContext(id)) }))
-    } catch (err) {
-      this.toolRoles.delete(id)
-      throw err
-    }
+  /** A wrap_up call: the renderer draws the box from the transcript; a blocked one marks the tab as waiting. */
+  private wrapUp(id: string, input: Record<string, unknown>): { text: string; isError: boolean } {
+    const result = wrapUpResult(input)
+    if (!result.isError && parseWrapUp(input).blocked) this.conversations.get(id)?.setWaiting(true)
+    return result
   }
 
   // ---- browsers ----
@@ -571,10 +560,19 @@ export class Workspace {
     }
   }
 
-  /** The tool access of a conversation: Kumi Code's own tools, and pages that need no asking. */
+  /**
+   * What a conversation gets from Kumi Code: the kumi server (wrap_up, and the review tools,
+   * which answer only in the role the conversation has), the browser's, and which calls run
+   * without asking.
+   */
   private toolAccess(id: string): ToolAccess {
     return {
-      allowedTools: [...REVIEW_TOOLS, ...BROWSER_TOOLS_ALLOWED],
+      instructions: KUMI_INSTRUCTIONS,
+      mcpServers: () => ({
+        ...kumiServers({ answer: (a) => this.answer(id, a), wrapUp: (input) => this.wrapUp(id, input) }),
+        ...browserServers(this.browserContext(id)),
+      }),
+      allowedTools: [...KUMI_TOOLS, ...BROWSER_TOOLS_ALLOWED],
       allows: (tool, input) => this.browserAllows(id, tool, input),
       allowed: (tool, input) => this.browserAllowed(id, tool, input),
     }
@@ -672,8 +670,6 @@ export class Workspace {
       },
     }, this.toolAccess(id))
     this.conversations.set(id, conversation)
-    // Before its process starts, so the process gets them.
-    this.syncTools(id).catch((err: unknown) => console.error(`Giving conversation ${id} its tools failed:`, err))
     void conversation.load().then(
       () => this.tabChanged(id),
       (err: unknown) => console.error(`Loading conversation ${id} failed:`, err),
@@ -698,7 +694,6 @@ export class Workspace {
     void this.conversations.get(tab.conversationId)?.stop()
     this.conversations.delete(tab.conversationId)
     this.revs.delete(tab.conversationId)
-    this.toolRoles.delete(tab.conversationId)
     this.lastStatus.delete(tab.conversationId)
     this.browsers.get(tab.conversationId)?.destroy()
     this.browsers.delete(tab.conversationId)
@@ -728,7 +723,7 @@ export class Workspace {
     if (!conversation) return { id: tab.id, conversationId: tab.conversationId, title: 'Conversation', status: 'idle' }
     const meta = conversation.snapshotMeta()
     let status: TabStatus = 'idle'
-    if (meta.requests.length > 0) status = 'attention'
+    if (meta.requests.length > 0 || meta.waiting) status = 'attention'
     else if (meta.status === 'running' || meta.status === 'starting' || meta.compacting) status = 'running'
     else if (meta.status === 'error') status = 'error'
     return { id: tab.id, conversationId: tab.conversationId, title: meta.title, status }

@@ -2,10 +2,12 @@
 <script lang="ts">
   import { untrack } from 'svelte'
   import type { BrowserState } from '@shared/types'
+  import { parseWrapUp, WRAP_UP_TOOL } from '@shared/wrap-up'
   import BrowserPane from './BrowserPane.svelte'
   import Composer from './Composer.svelte'
   import Dock from './Dock.svelte'
   import Item from './Item.svelte'
+  import NextStep from './NextStep.svelte'
   import Requests from './Requests.svelte'
   import ReviewPanel from './ReviewPanel.svelte'
   import Todos from './Todos.svelte'
@@ -40,6 +42,15 @@
   // The implementer's review comes first when the conversation is in two.
   const review = $derived(app.reviews.find((r) => r.implementerId === id) ?? app.reviews.find((r) => r.reviewerId === id))
   const reviewId = $derived(review?.id ?? null)
+  // The box shows the last wrap_up that worked, until the user's next message.
+  const wrapUp = $derived.by(() => {
+    for (let i = c.items.length - 1; i >= 0; i--) {
+      const item = c.items[i]
+      if (item?.kind === 'user') return null
+      if (item?.kind === 'tool' && item.name === WRAP_UP_TOOL && item.result && !item.result.isError) return parseWrapUp(item.input)
+    }
+    return null
+  })
   const browser = $derived(c.browser)
   const browserOpen = $derived((browser?.tabs.length ?? 0) > 0)
 
@@ -113,6 +124,7 @@
           <div class="transcript-inner">
             {#if c.items.length === 0 && meta.status !== 'running'}<div class="empty">What should we work on?</div>{/if}
             {#each c.items as item (item.id)}<Item {item} {cwd} conversationId={id} />{/each}
+            {#if wrapUp?.ask}<NextStep conversationId={id} {wrapUp} />{/if}
             {#if meta.compacting}<div class="status-line">Compacting conversation…</div>
             {:else if meta.requests.length > 0}<div class="status-line">Waiting for you</div>
             {:else if meta.status === 'running'}<div class="status-line working">Working…</div>
