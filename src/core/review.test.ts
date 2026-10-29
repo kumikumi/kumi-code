@@ -33,19 +33,23 @@ describe('Reviews', () => {
     const first = reviews.relay('tu1', 1, ' check the legacy view ')
     expect(first).toMatchObject({ to: 'implementer', conversationId: 'impl' })
     expect(parseRelay(first.text)).toMatchObject({ to: 'implementer', rank: 1, of: 2, reply: null, note: 'check the legacy view' })
-    expect(first.text).toContain('mcp__kumi__respond_to_finding')
+    expect(first.text).toContain('mcp__review__respond_to_finding')
+    // Nothing the agent reads names Kumi Code.
+    expect(first.text).not.toMatch(/kumi/i)
     // Nothing changes until the message went out.
     expect(review.findings[0]?.status).toBe('open')
     reviews.sent('tu1', 1, 'implementer', ' check the legacy view ', 2)
     expect(review.findings[0]).toMatchObject({ status: 'implementing', thread: [{ from: 'user', text: 'check the legacy view' }] })
 
-    reviews.answer('impl', { role: 'implementer', finding: 1, outcome: 'fixed', reply: 'Added the site id to the key.' })
+    const recorded = reviews.answer('impl', { role: 'implementer', finding: 1, outcome: 'fixed', reply: 'Added the site id to the key.' })
+    expect(recorded).not.toMatch(/kumi/i)
     expect(review.findings[0]?.status).toBe('fixed')
     const second = reviews.relay('tu1', 1, '')
     expect(second.conversationId).toBe('rev')
+    expect(second.text).not.toMatch(/kumi/i)
     expect(parseRelay(second.text)).toMatchObject({ to: 'reviewer', reply: { from: 'implementer', outcome: 'fixed', text: 'Added the site id to the key.' }, note: null })
     reviews.sent('tu1', 1, 'reviewer', '')
-    reviews.answer('rev', { role: 'reviewer', finding: 1, verdict: 'accept', reply: 'Verified.' })
+    expect(reviews.answer('rev', { role: 'reviewer', finding: 1, verdict: 'accept', reply: 'Verified.' })).not.toMatch(/kumi/i)
     expect(review.findings[0]?.status).toBe('resolved')
   })
 
@@ -134,8 +138,8 @@ describe('relayed messages', () => {
     const { reviews } = started()
     const { text } = reviews.relay('tu1', 2, '')
     expect(relayText(parseRelay(text)!)).toBe(text)
-    expect(parseRelay('<kumi-review>\nnot json\n</kumi-review>')).toBeNull()
-    expect(parseRelay('Please look at <kumi-review>')).toBeNull()
+    expect(parseRelay('<code-review>\nnot json\n</code-review>')).toBeNull()
+    expect(parseRelay('Please look at <code-review>')).toBeNull()
 
     const t = new TranscriptBuilder()
     t.addUser('u1', text, [], false)

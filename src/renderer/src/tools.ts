@@ -53,9 +53,9 @@ export function summarizeTool(name: string, input: Record<string, unknown>, cwd:
       return { label: 'Next step', detail: str(input.ask) || str(input.recap) }
     case 'ReportFindings':
       return { label: 'Review findings', detail: Array.isArray(input.findings) ? String(input.findings.length) : '' }
-    case 'mcp__kumi__respond_to_finding':
+    case 'mcp__review__respond_to_finding':
       return { label: 'Answer finding', detail: `${String(input.finding)} · ${input.outcome === 'fixed' ? 'fixed' : 'no change needed'}` }
-    case 'mcp__kumi__resolve_finding':
+    case 'mcp__review__resolve_finding':
       return { label: 'Resolve finding', detail: `${String(input.finding)} · ${input.verdict === 'accept' ? 'accepted' : 'reopened'}` }
   }
   const browser = /^mcp__browser__(.+)$/.exec(name)?.[1]

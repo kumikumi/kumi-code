@@ -3,7 +3,8 @@
 // app's tool, with its name (served by ccd_turn, so the agent sees
 // mcp__ccd_turn__wrap_up), its schema and its description. In a code review, the implementer answers a finding Kumi Code relayed
 // and the reviewer gives its verdict on the answer; those tools answer only in
-// the role the conversation has; they are served by kumi. All of them are always
+// the role the conversation has; they are served by review. What the agent reads
+// never names Kumi Code, which would read as one more party in the work. All are always
 // loaded, so an agent has their schemas without a tool search. The servers stay the
 // same while a process runs: Claude Code keeps a server it already has by its name.
 
@@ -13,11 +14,11 @@ import { z } from 'zod'
 import type { ReviewAnswer } from './review'
 
 /** Allowed without asking: all they do is record an answer, or show a box, in Kumi Code. */
-export const KUMI_TOOLS = ['mcp__ccd_turn__wrap_up', 'mcp__kumi__respond_to_finding', 'mcp__kumi__resolve_finding']
+export const KUMI_TOOLS = ['mcp__ccd_turn__wrap_up', 'mcp__review__respond_to_finding', 'mcp__review__resolve_finding']
 
 /** Appended to Claude Code's system prompt: when to call wrap_up, as the desktop app tells its agents. */
-export const KUMI_INSTRUCTIONS = `# Next step (Kumi Code)
-Every turn in which you changed files, ran commands or completed multi-step work closes with mcp__ccd_turn__wrap_up, called when the turn's work is done and before your closing message: it fills the next-step box, and without the call Kumi Code has nothing to draw. The recap says in two or three sentences what is now true and where it stands, including what is not done or not verified. When the turn leaves the user a decision to make or a step to take, add one short question (the decision alone, no reason or recommendation) and one or two reply buttons that answer it, your pick first; with nothing pending, send the recap alone and no box is drawn. Your closing message follows the call, the last thing you say: your answer to the user in full, which the recap never replaces. Skip the call for short answers and pure conversation.`
+export const KUMI_INSTRUCTIONS = `# Next step
+Every turn in which you changed files, ran commands or completed multi-step work closes with mcp__ccd_turn__wrap_up, called when the turn's work is done and before your closing message: it fills the next-step box, and without the call the app has nothing to draw. The recap says in two or three sentences what is now true and where it stands, including what is not done or not verified. When the turn leaves the user a decision to make or a step to take, add one short question (the decision alone, no reason or recommendation) and one or two reply buttons that answer it, your pick first; with nothing pending, send the recap alone and no box is drawn. Your closing message follows the call, the last thing you say: your answer to the user in full, which the recap never replaces. Skip the call for short answers and pure conversation.`
 
 export interface KumiToolHandlers {
   /** A review answer; returns what the tool tells the agent, or throws it as an error. */
@@ -66,7 +67,7 @@ const wrapUpShape = {
     ),
 }
 
-/** The MCP servers of a conversation: ccd_turn with wrap_up, and kumi with the review tools. */
+/** The MCP servers of a conversation: ccd_turn with wrap_up, and review with the review tools. */
 export function kumiServers(handlers: KumiToolHandlers): Record<string, McpServerConfig> {
   const run = async (a: ReviewAnswer) => {
     try {
@@ -75,7 +76,7 @@ export function kumiServers(handlers: KumiToolHandlers): Record<string, McpServe
       return { content: [{ type: 'text' as const, text: err instanceof Error ? err.message : String(err) }], isError: true }
     }
   }
-  const finding = z.number().int().describe('The number of the finding, from the relayed <kumi-review> message.')
+  const finding = z.number().int().describe('The number of the finding, from the relayed <code-review> message.')
   const wrapUp = tool('wrap_up', WRAP_UP_DESCRIPTION, wrapUpShape, async (args) => {
     const result = handlers.wrapUp(args as Record<string, unknown>)
     return { content: [{ type: 'text' as const, text: result.text }], isError: result.isError }
@@ -84,7 +85,7 @@ export function kumiServers(handlers: KumiToolHandlers): Record<string, McpServe
   const reviewTools: SdkMcpToolDefinition<any>[] = [
     tool(
       'respond_to_finding',
-      'Answer a code review finding that Kumi Code relayed to you from the reviewer (a <kumi-review> message). Call it once per relayed finding, after you have fixed it or decided that it needs no change: the answer goes to the reviewer at once, and it checks the code then.',
+      'Answer a code review finding relayed to you from the reviewer (a <code-review> message). Call it once per relayed finding, after you have fixed it or decided that it needs no change: the answer goes to the reviewer at once, and it checks the code then.',
       {
         finding,
         outcome: z.enum(['fixed', 'no_change_needed']).describe('"fixed": you changed the code to address it. "no_change_needed": the finding is wrong, or a change would be; you push back.'),
@@ -94,7 +95,7 @@ export function kumiServers(handlers: KumiToolHandlers): Record<string, McpServe
     ),
     tool(
       'resolve_finding',
-      "Give your verdict on the implementer's answer to one of your code review findings, which Kumi Code relayed to you (a <kumi-review> message).",
+      "Give your verdict on the implementer's answer to one of your code review findings, relayed to you (a <code-review> message).",
       {
         finding,
         verdict: z.enum(['accept', 'reopen']).describe('"accept": the fix holds, or the push-back answers your finding. "reopen": it does not.'),
@@ -105,6 +106,6 @@ export function kumiServers(handlers: KumiToolHandlers): Record<string, McpServe
   ]
   return {
     ccd_turn: createSdkMcpServer({ name: 'ccd_turn', tools: [wrapUp], alwaysLoad: true }),
-    kumi: createSdkMcpServer({ name: 'kumi', tools: reviewTools, alwaysLoad: true }),
+    review: createSdkMcpServer({ name: 'review', tools: reviewTools, alwaysLoad: true }),
   }
 }

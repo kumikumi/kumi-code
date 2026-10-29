@@ -13,7 +13,7 @@ What the code does, precisely. `README.md` is the short version.
   - `environment.ts` — the environment Claude Code processes run with.
   - `input-queue.ts` — the streaming input of a `query()`.
   - `review.ts` — `Reviews`: code review loops, and the relayed messages' format.
-  - `kumi-tools.ts` — Kumi Code's own MCP servers: `ccd_turn` (`wrap_up`) and `kumi` (the review
+  - `kumi-tools.ts` — Kumi Code's own MCP servers: `ccd_turn` (`wrap_up`) and `review` (the review
     tools).
   - `wrap-up.ts` — what a `wrap_up` call tells the agent.
   - `keys.ts` — key names and shortcuts → DevTools protocol key events.
@@ -197,18 +197,18 @@ What the code does, precisely. `README.md` is the short version.
   *stalled* and can be sent again. Sending to a
   conversation no tab shows opens it in a new tab after the active one (for the implementer's
   answer: after the implementer's tab).
-- A relayed message is a user message: `<kumi-review>`, one line of JSON (`RelayMessage`: the
-  finding, the other agent's latest answer, the user's note), `</kumi-review>`, then instructions.
+- A relayed message is a user message: `<code-review>`, one line of JSON (`RelayMessage`: the
+  finding, the other agent's latest answer, the user's note), `</code-review>`, then instructions.
   The implementer is told the reviewer has a fresh context and can be wrong, to check the claim,
   fix it or push back, that the user's note outranks both agents, and to answer only when the
   code is final, since the reviewer checks it at once. The reviewer is told the
   implementer has context it lacks, to verify a fix or weigh a push-back, not to reopen only to
   restate the finding, and not to change the code. The transcript shows these messages, live and
   stored, as relay cards.
-- The agents answer with tools of Kumi Code's MCP server `kumi` (see Next step):
+- The agents answer with tools of Kumi Code's MCP server `review` (see Next step):
   `respond_to_finding({ finding, outcome: fixed | no_change_needed, reply })` for the implementer,
   `resolve_finding({ finding, verdict: accept | reopen, reply })` for the reviewer. Every
-  conversation has both, loaded like all of `kumi`'s tools; a call
+  conversation has both, always loaded; a call
   from a conversation that is not that review's implementer or reviewer, or about a finding that
   is not waiting on that agent, is a tool error, and one about a finding the user closed says so.
 - UI: a `ReportFindings` call shows as a findings card (ranked rows that expand to details, the
@@ -223,11 +223,15 @@ What the code does, precisely. `README.md` is the short version.
 
 ## Next step
 
-- Every conversation gets Kumi Code's in-process MCP servers `ccd_turn`, `kumi` and `browser`,
+- Every conversation gets Kumi Code's in-process MCP servers `ccd_turn`, `review` and `browser`,
   made for each Claude Code process and the same while it runs (Claude Code keeps a server it has
   by its name, so swapping one mid-session would not change its tools). The tools of `ccd_turn`
-  and `kumi` are always loaded, so an agent has their schemas without a tool search, and are in
+  and `review` are always loaded, so an agent has their schemas without a tool search, and are in
   `allowedTools`.
+- Nothing an agent reads names Kumi Code: not the server or tool names, the relayed messages, the
+  tool descriptions and results, the browser's instructions or the system prompt section (which
+  says "the app"). An agent told that Kumi Code relayed something took Kumi Code for one more
+  party in the work.
 - `ccd_turn` serves `wrap_up`, so the agent sees `mcp__ccd_turn__wrap_up`: the Claude desktop app's
   tool that fills the next-step box at the end of a turn, with its name, input schema (`recap`;
   optional `ask`, `actions` of up to two buttons, `blocked`) and description. The description

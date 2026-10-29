@@ -172,7 +172,7 @@ export class Previews {
     this.servers.delete(serverId)
     const { name, url } = server.info
     const pid = server.child?.pid
-    if (pid === undefined) return `Removed "${name}" (${serverId}). Kumi Code did not start it, so nothing was stopped.`
+    if (pid === undefined) return `Removed "${name}" (${serverId}). It was a server already running, not one preview_start started, so nothing was stopped.`
     const started = Date.now()
     // The tree as it is now: once the first process exits, its children are no longer linked to it.
     const pids = processesOf(pid)

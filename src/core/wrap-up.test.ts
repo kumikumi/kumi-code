@@ -20,12 +20,18 @@ describe('wrap_up', () => {
 
   it('shows a question, and says when there is no box', () => {
     expect(wrapUpResult({ recap, ask: 'Commit it?', actions: [{ label: 'Commit' }] })).toEqual({ isError: false, text: expect.stringMatching(/^Shown in the next-step box\. .*do not ask it again\.$/) })
-    expect(wrapUpResult({ recap }).text).toMatch(/^Nothing is pending, so Kumi Code draws no box/)
+    expect(wrapUpResult({ recap }).text).toMatch(/^Nothing is pending, so the app draws no box/)
     expect(wrapUpResult({ recap, ask: 'Which one?' }).text).toContain('without buttons')
   })
 
+  it('never names Kumi Code to the agent', () => {
+    for (const input of [{ recap }, { recap, ask: 'Go?', actions: [{ label: 'Yes' }] }, { recap, ask: 'Go?', actions: [{ action: 'commit' }] }, { recap, ask: 'Go?', actions: [{ label: '/x' }] }]) {
+      expect(wrapUpResult(input).text).not.toMatch(/kumi/i)
+    }
+  })
+
   it('refuses what it cannot show', () => {
-    expect(wrapUpResult({ recap, ask: 'Commit?', actions: [{ action: 'commit' }] })).toMatchObject({ isError: true, text: expect.stringContaining('commit is not an action Kumi Code has') })
+    expect(wrapUpResult({ recap, ask: 'Commit?', actions: [{ action: 'commit' }] })).toMatchObject({ isError: true, text: expect.stringContaining('commit is not an action the app has') })
     expect(wrapUpResult({ recap: ' ' }).isError).toBe(true)
     expect(wrapUpResult({ recap, actions: [{ label: 'Yes' }] }).text).toContain('there is no ask')
     expect(wrapUpResult({ recap, ask: 'Go?', actions: [{ label: 'a' }, { label: 'b' }, { label: 'c' }] }).text).toContain('3 buttons')
