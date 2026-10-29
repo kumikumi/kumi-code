@@ -10,11 +10,11 @@
   let { review, conversationId, visible, onhide }: { review: Review; conversationId: string; visible: boolean; onhide: () => void } = $props()
 
   const other = $derived(review.implementerId === conversationId ? { id: review.reviewerId, name: 'Reviewer' } : { id: review.implementerId, name: 'Implementer' })
-  /** The finding the user picked, and whether it was settled then. */
-  let picked = $state<{ rank: number; settled: boolean } | null>(null)
+  /** The finding the user picked or sent: it stays the current one, settled or not, until the user picks another. */
+  let picked = $state<number | null>(null)
   // Without a pick: the first finding that can be sent, else the first one still open.
   const shown = $derived(
-    review.findings.find((f) => f.rank === picked?.rank) ??
+    review.findings.find((f) => f.rank === picked) ??
       review.findings.find((f) => relayTarget(f) !== null) ??
       review.findings.find((f) => !isSettled(f.status)),
   )
@@ -24,11 +24,6 @@
   let error = $state<string | null>(null)
   let sending = $state(false)
 
-  // A picked finding that gets settled hands over to the next one.
-  $effect.pre(() => {
-    const f = review.findings.find((x) => x.rank === picked?.rank)
-    if (picked && f && !picked.settled && isSettled(f.status)) picked = null
-  })
   // The note belongs to the finding it was written for. Only the rank counts:
   // every review update brings new copies of the findings.
   $effect.pre(() => {
@@ -38,7 +33,7 @@
   })
 
   function pick(f: ReviewFinding): void {
-    picked = { rank: f.rank, settled: isSettled(f.status) }
+    picked = f.rank
   }
 
   function run(p: Promise<unknown>): void {
@@ -48,7 +43,6 @@
 
   function send(): void {
     if (!shown || !target || sending) return
-    // A finding on its way stays the current one until it is settled.
     pick(shown)
     sending = true
     error = null

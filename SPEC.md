@@ -214,7 +214,8 @@ What the code does, precisely. `README.md` is the short version.
   Code's conversations, this folder's first). A conversation in a review shows the review panel
   beside the transcript (the dock, see Browser): every finding with its status, *Close* / *Reopen* per row, and the
   current finding (the one picked, else the first that can be sent) with its thread (each entry
-  headed by its speaker, colored by role), a note field and the send button (⌘↵). Sending a finding picks it; a picked finding that gets settled hands over to the next. *Reviewer* /
+  headed by its speaker, colored by role), a note field and the send button (⌘↵). Sending a finding picks it, and a picked finding stays the current one, settled or not, until
+  the user picks another. *Reviewer* /
   *Implementer* switches to the other conversation; *End* removes the review.
 - Deleting a conversation ends its reviews.
 
