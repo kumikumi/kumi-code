@@ -98,7 +98,8 @@ What the code does, precisely. `README.md` is the short version.
   items, throttled to 40 ms, with a per-conversation revision number. A renderer fetches a snapshot
   (with its revision) when it first shows a conversation and ignores older events. It keeps the
   items as raw (unproxied) Svelte state and replaces the changed ones, so rows of unchanged items
-  are left alone. If the snapshot cannot be fetched, the view shows the error and ignores the
+  are left alone; rows take the folder as a derived string, so meta updates leave them alone too
+  (`e2e/rows.mjs` counts the calls). If the snapshot cannot be fetched, the view shows the error and ignores the
   conversation's later events.
 - Markdown: `marked` (GitHub-flavoured) to HTML, sanitized with DOMPurify (it is model output).
   Code blocks get a language label and a copy button, and are highlighted with Shiki (JavaScript

@@ -4,7 +4,7 @@ import { resolve } from 'node:path'
 
 const alias = { '@shared': resolve('src/shared') }
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   main: {
     resolve: { alias },
   },
@@ -16,5 +16,7 @@ export default defineConfig({
   renderer: {
     plugins: [svelte()],
     resolve: { alias },
+    // The end-to-end tests count calls of renderer functions by name.
+    build: { minify: mode !== 'e2e' },
   },
-})
+}))

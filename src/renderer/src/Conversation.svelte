@@ -22,6 +22,9 @@
   let tasksOpen = $state(true)
 
   const meta = $derived(c.meta)
+  // Rows get the folder as a string of its own: a new meta object (every meta
+  // update) with the same folder then leaves them alone.
+  const cwd = $derived(meta?.cwd ?? '')
   const tasks = $derived(meta?.tasks ?? [])
   const showTasks = $derived(tasks.some((t) => t.status !== 'completed'))
 
@@ -67,7 +70,7 @@
     >
       <div class="transcript-inner">
         {#if c.items.length === 0 && meta.status !== 'running'}<div class="empty">What should we work on?</div>{/if}
-        {#each c.items as item (item.id)}<Item {item} cwd={meta.cwd} />{/each}
+        {#each c.items as item (item.id)}<Item {item} {cwd} />{/each}
         {#if meta.compacting}<div class="status-line">Compacting conversation…</div>
         {:else if meta.requests.length > 0}<div class="status-line">Waiting for you</div>
         {:else if meta.status === 'running'}<div class="status-line working">Working…</div>
