@@ -219,19 +219,22 @@ export class TranscriptBuilder {
   /**
    * Tool results in a user message. Other user content is handled by the caller.
    * `structured` is the tool's own output, which live messages carry for their
-   * single tool result.
+   * single tool result. Returns the tool calls that finished.
    */
-  applyToolResults(raw: unknown, structured?: unknown): void {
+  applyToolResults(raw: unknown, structured?: unknown): ToolItem[] {
     const message = raw as ApiMessage
-    if (!Array.isArray(message.content)) return
+    if (!Array.isArray(message.content)) return []
     const results = message.content.filter((b) => b.type === 'tool_result' && b.tool_use_id)
+    const finished: ToolItem[] = []
     for (const block of results) {
       const tool = this.tools.get(block.tool_use_id ?? '')
       if (!tool) continue
       tool.result = toolResult(block)
       this.touch(tool)
+      finished.push(tool)
       if (!tool.result.isError) this.trackTask(tool, tool.result.text, results.length === 1 ? structured : undefined)
     }
+    return finished
   }
 
   /** A session's stored messages, as getSessionMessages returns them. */

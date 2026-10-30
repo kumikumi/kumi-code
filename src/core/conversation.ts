@@ -59,6 +59,8 @@ export interface ConversationEvents {
   onSettings(settings: ConversationSettings): void
   /** The session's title or modification time may have changed. */
   onSessionChanged(): void
+  /** A tool call of the agent finished, live (not when a stored session is read). */
+  onToolDone(tool: { id: string; name: string; input: Record<string, unknown>; isError: boolean }): void
 }
 
 interface Pending {
@@ -374,7 +376,9 @@ export class Conversation {
         this.scheduleFlush()
         return
       case 'user':
-        this.transcript.applyToolResults(msg.message, msg.tool_use_result)
+        for (const tool of this.transcript.applyToolResults(msg.message, msg.tool_use_result)) {
+          this.events.onToolDone({ id: tool.id, name: tool.name, input: tool.input, isError: tool.result?.isError === true })
+        }
         if (this.transcript.takeTasksChanged()) {
           this.meta.tasks = this.transcript.tasks
           this.emitMeta()

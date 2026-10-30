@@ -9,8 +9,8 @@
 // block, followed by instructions for the agent, so a stored transcript shows it
 // as a relay card again.
 
-import { parseFindings, relayTarget } from '@shared/review'
-import type { Finding, ImplementerOutcome, RelayMessage, Review, ReviewerVerdict, ReviewFinding, ReviewRole } from '@shared/types'
+import { matchReport, parseFindings, parseOutcomes, relayTarget } from '@shared/review'
+import type { Finding, ImplementerOutcome, RelayMessage, ReportedOutcome, Review, ReviewerVerdict, ReviewFinding, ReviewRole } from '@shared/types'
 
 export type ReviewAnswer =
   | { role: 'implementer'; finding: number; outcome: ImplementerOutcome; reply: string }
@@ -99,6 +99,32 @@ export class Reviews {
     this.onChange()
   }
 
+  /**
+   * A later ReportFindings call of a review's reviewer: each outcome it gives applies to the
+   * finding it matches, in any status but closed. "fixed" marks it fixed and verified;
+   * "no_change_needed" and "skipped" withdraw it. Returns the findings that changed.
+   */
+  applyReport(conversationId: string, toolUseId: string, input: Record<string, unknown>, now = Date.now()): { rank: number; outcome: ReportedOutcome }[] {
+    const review = this.of(conversationId, 'reviewer')
+    if (!review || review.id === toolUseId) return []
+    const outcomes = parseOutcomes(input)
+    const ranks = matchReport(review, parseFindings(input))
+    const applied: { rank: number; outcome: ReportedOutcome }[] = []
+    outcomes.forEach((outcome, i) => {
+      const rank = ranks[i]
+      if (!outcome || rank === null || rank === undefined) return
+      const f = findingOf(review, rank)
+      const status = outcome === 'fixed' ? 'resolved' : 'withdrawn'
+      if (f.status === 'closed' || f.status === status) return
+      f.status = status
+      f.stalled = false
+      f.thread.push({ from: 'reviewer', outcome, text: REPORTED[outcome], at: now })
+      applied.push({ rank, outcome })
+    })
+    if (applied.length > 0) this.onChange()
+    return applied
+  }
+
   /** A relay could not be delivered: the finding waits to be sent again. */
   unanswered(id: string, rank: number): void {
     findingOf(this.get(id), rank).stalled = true
@@ -156,7 +182,17 @@ export class Reviews {
     const f = review.findings.find((x) => x.rank === a.finding)
     if (!f) throw new Error(`The review has no finding ${a.finding}; its findings are numbered 1 to ${review.findings.length}.`)
     if (f.status === 'closed') throw new Error(`The user closed finding ${a.finding}. Leave it.`)
-    if (f.status !== (a.role === 'implementer' ? 'implementing' : 'verifying')) throw new Error(`Finding ${a.finding} is not waiting on your answer.`)
+    // The reviewer may send a finding it settled back to the implementer, say to undo a fix for a finding that was wrong.
+    const settled = f.status === 'resolved' || f.status === 'withdrawn'
+    const waiting = a.role === 'implementer' ? f.status === 'implementing' : f.status === 'verifying' || (settled && a.verdict === 'reopen')
+    if (!waiting) {
+      if (a.role === 'reviewer' && settled) {
+        throw new Error(
+          `Finding ${a.finding} is settled already. To send it back to the implementer, reopen it, with what the implementer should do as the reply; to withdraw it, report it again with ReportFindings and outcome "no_change_needed".`,
+        )
+      }
+      throw new Error(`Finding ${a.finding} is not waiting on your answer.`)
+    }
     if (a.role === 'implementer') {
       f.thread.push({ from: 'implementer', outcome: a.outcome, text: a.reply.trim(), at: now })
       f.status = a.outcome === 'fixed' ? 'fixed' : 'pushed_back'
@@ -167,9 +203,8 @@ export class Reviews {
     }
     f.stalled = false
     this.onChange()
-    return a.role === 'implementer'
-      ? 'Recorded. Your answer goes to the reviewer now, and it checks the code at once: leave the code for this finding as it is.'
-      : 'Recorded. The user sees your verdict.'
+    if (a.role === 'implementer') return 'Recorded. Your answer goes to the reviewer now, and it checks the code at once: leave the code for this finding as it is.'
+    return a.verdict === 'reopen' ? 'Recorded. The finding goes back to the implementer, with your reply, when the user sends it.' : 'Recorded. The user sees your verdict.'
   }
 
   private get(id: string): Review {
@@ -177,6 +212,12 @@ export class Reviews {
     if (!review) throw new Error(`No review ${id}`)
     return review
   }
+}
+
+const REPORTED: Record<ReportedOutcome, string> = {
+  fixed: 'Reported the finding as fixed.',
+  no_change_needed: 'Withdrew the finding: reported as needing no change.',
+  skipped: 'Withdrew the finding: reported as skipped.',
 }
 
 function findingOf(review: Review, rank: number): ReviewFinding {
@@ -214,6 +255,9 @@ function instructions(m: RelayMessage): string {
     return [
       `${intro} The reviewer is a separate agent that read the changes with a fresh context. It has not seen this conversation and can be wrong.${plausible}${note}`,
       'Check the claim against the code before you act. If it holds, fix it. If it does not, or a fix would be wrong for reasons the reviewer cannot see, leave the code as it is and push back with your reasons. Work on this finding only.',
+      ...(m.reply
+        ? ['If the reviewer now says the finding itself was wrong and asks you to undo your change, undo exactly that change, nothing else, and answer outcome "no_change_needed".']
+        : []),
       `When you are done, call mcp__review__respond_to_finding once with finding ${m.rank}: outcome "fixed" and a reply saying what you changed, or outcome "no_change_needed" and a reply saying why. Your answer goes to the reviewer at once, so call it only when the code is final.`,
     ].join('\n\n')
   }
@@ -224,5 +268,6 @@ function instructions(m: RelayMessage): string {
       ? 'Verify in the code that the fix is correct and complete, and that it breaks nothing nearby. Accept if it holds; reopen with what is still wrong if it does not.'
       : 'It has context you lack: the conversation in which the code was written. Check its reasons against the code. Accept if they answer your failure scenario; reopen with a specific reason if they do not. Do not reopen only to restate the finding.',
     `Do not change the code yourself. Call mcp__review__resolve_finding once with finding ${m.rank}: verdict "accept" or "reopen", and your reason as the reply.`,
+    'If you conclude, now or later, that the finding itself was wrong, report your findings again with ReportFindings, giving it outcome "no_change_needed": that withdraws it.',
   ].join('\n\n')
 }

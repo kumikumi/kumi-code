@@ -95,10 +95,10 @@ export function kumiServers(handlers: KumiToolHandlers): Record<string, McpServe
     ),
     tool(
       'resolve_finding',
-      "Give your verdict on the implementer's answer to one of your code review findings, relayed to you (a <code-review> message).",
+      "Give your verdict on the implementer's answer to one of your code review findings, relayed to you (a <code-review> message). You can also reopen a finding you settled before, to send it back to the implementer: say, to undo a fix for a finding that turned out wrong, with what the implementer should do as the reply. To withdraw one of your findings at any time, even one already settled, call ReportFindings again with that finding and outcome \"no_change_needed\" (\"skipped\" when it is not worth doing); outcome \"fixed\" marks it fixed and verified.",
       {
         finding,
-        verdict: z.enum(['accept', 'reopen']).describe('"accept": the fix holds, or the push-back answers your finding. "reopen": it does not.'),
+        verdict: z.enum(['accept', 'reopen']).describe('"accept": the fix holds, or the push-back answers your finding. "reopen": it does not, or a finding you settled must go back to the implementer.'),
         reply: z.string().describe('Your reason, for the implementer and the user. When reopening, say what is still wrong.'),
       },
       (args) => run({ role: 'reviewer', ...args }),

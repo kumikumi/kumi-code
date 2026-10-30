@@ -1,6 +1,6 @@
-<!-- Findings a reviewer reported with ReportFindings, most severe first, and the start of a review loop with the conversation that wrote the code. -->
+<!-- Findings a reviewer reported with ReportFindings, most severe first, and the start of a review loop with the conversation that wrote the code. A reviewer's later report with outcomes shows which of the review's findings each outcome went to. -->
 <script lang="ts">
-  import { isSettled, location, parseFindings, statusLabel } from '@shared/review'
+  import { isSettled, location, matchReport, parseFindings, parseOutcomes, statusLabel } from '@shared/review'
   import type { ConversationSummary, TranscriptItem } from '@shared/types'
   import FindingDetails from './FindingDetails.svelte'
   import { api, app } from './state.svelte'
@@ -11,6 +11,11 @@
   const findings = $derived(parseFindings(tool.input))
   const level = $derived(typeof tool.input.level === 'string' ? tool.input.level : null)
   const review = $derived(app.reviews.find((r) => r.id === tool.id))
+  const outcomes = $derived(parseOutcomes(tool.input))
+  /** The review this call reports outcomes for: the review of which this conversation is the reviewer. */
+  const reReported = $derived(!review && outcomes.some(Boolean) ? (app.reviews.find((r) => r.reviewerId === conversationId) ?? null) : null)
+  const matches = $derived(reReported ? matchReport(reReported, findings) : [])
+  const OUTCOME_LABELS = { fixed: 'fixed', no_change_needed: 'no change needed', skipped: 'skipped' }
   const reported = $derived(tool.partialInput === null && tool.result !== null && !tool.result.isError)
   let expanded = $state<number | null>(null)
   /** Conversations that may have written the code, while the user picks one. */
@@ -38,7 +43,7 @@
 <div class="item findings">
   <div class="findings-head">
     <span class="tool-state {tool.result === null ? 'running' : tool.result.isError ? 'error' : 'done'}"></span>
-    <span class="tool-label">Review findings</span>
+    <span class="tool-label">{reReported ? 'Findings reported again' : 'Review findings'}</span>
     <span class="muted">
       {tool.partialInput !== null ? 'Reporting…' : `${findings.length} ${findings.length === 1 ? 'finding' : 'findings'}`}{level ? ` · ${level} effort` : ''}
     </span>
@@ -55,15 +60,17 @@
           <button class="finding-line" onclick={() => (expanded = expanded === i ? null : i)}>
             <span class="finding-rank">{i + 1}</span>
             {#if state}<span class={['finding-dot', state.status, state.stalled && 'stalled']} title={statusLabel(state)}></span>{/if}
+            {#if outcomes[i]}<span class="chip">{OUTCOME_LABELS[outcomes[i]!]}</span>{/if}
             <span class="finding-title">{f.title}</span>
-            <span class="finding-where">{location(f)}</span>
+            {#if reReported}<span class="finding-where">{matches[i] ? `→ finding ${matches[i]}` : 'not in the review'}</span>
+            {:else}<span class="finding-where">{location(f)}</span>{/if}
           </button>
           {#if expanded === i}<FindingDetails finding={f} where={false} />{/if}
         </li>
       {/each}
     </ol>
     {#if tool.result?.isError}<div class="tool-error-line">{tool.result.text.trim().split('\n')[0]?.slice(0, 200)}</div>{/if}
-    {#if reported && !review && findings.length > 0}
+    {#if reported && !review && !reReported && findings.length > 0}
       <div class="findings-foot">
         {#if candidates === null}
           <button onclick={pick}>Start review loop…</button>

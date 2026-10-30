@@ -668,6 +668,10 @@ export class Workspace {
         }
         this.broadcast(IPC.evConversationsChanged)
       },
+      onToolDone: (tool) => {
+        // A reviewer reporting its findings again says what became of them.
+        if (tool.name === 'ReportFindings' && !tool.isError) this.reviews.applyReport(id, tool.id, tool.input)
+      },
     }, this.toolAccess(id))
     this.conversations.set(id, conversation)
     void conversation.load().then(

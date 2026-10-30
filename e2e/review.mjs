@@ -97,6 +97,29 @@ await panel.locator('.review-finding').nth(1).hover()
 await panel.locator('.review-finding').nth(1).getByRole('button', { name: 'Close' }).click()
 await waitUntil(page, 'finding 2 closes again', async () => (await statusOf(2)) === 'closed')
 check((await panel.locator('.review-head').innerText()).includes('2 of 2 settled'), 'the panel counts both findings as settled')
+
+// The reviewer withdraws its verified finding by reporting again; the user's closing stands.
+await page.locator('.tab-pane:not([hidden]) .composer textarea').fill(
+  'Call the ReportFindings tool again, with level "low" and the same two findings as before in the same order, now with outcome "no_change_needed" on the first and outcome "skipped" on the second. Then reply with just the word DONE.',
+)
+await page.keyboard.press('Enter')
+await waitUntil(page, 'finding 1 is withdrawn', async () => (await statusOf(1)) === 'withdrawn')
+check((await statusOf(2)) === 'closed', "the reviewer's report withdraws a verified finding and leaves the user's closed one")
+await panel.locator('.review-pick').first().click()
+check((await panel.locator('.review-finding.current .thread-who').allInnerTexts()).at(-1) === 'Reviewer · withdrew it', 'the thread shows the withdrawal')
+const again = page.locator('.tab-pane:not([hidden]) .item.findings').last()
+check((await again.locator('.tool-label').innerText()) === 'Findings reported again' && (await again.locator('.finding-where').first().innerText()) === '→ finding 1', 'the new report shows where its outcomes went')
+check((await again.getByRole('button', { name: 'Start review loop…' }).count()) === 0, 'a report of outcomes does not offer a new review')
+await waitUntil(page, 'the reviewer is idle', async () => (await page.evaluate((id) => window.kumi.getConversation(id), reviewer)).meta.status === 'idle')
+
+// The reviewer sends a finding it settled back to the implementer.
+await page.locator('.tab-pane:not([hidden]) .composer textarea').fill(
+  'Call the mcp__review__resolve_finding tool with finding 1, verdict "reopen" and reply "Undo the fix: the finding was wrong." Then reply with just the word DONE.',
+)
+await page.keyboard.press('Enter')
+await waitUntil(page, 'finding 1 is reopened', async () => (await statusOf(1)) === 'reopened')
+check((await panel.getByRole('button', { name: /Send back to implementer/ }).count()) === 1, 'the reviewer reopens a finding it settled, for the user to send back')
+await waitUntil(page, 'the reviewer is idle again', async () => (await page.evaluate((id) => window.kumi.getConversation(id), reviewer)).meta.status === 'idle')
 await page.screenshot({ path: `${shots}/review-reviewer.png` })
 
 await page.locator('.tab-pane:not([hidden]) .review-head').getByRole('button', { name: /Implementer/ }).click()

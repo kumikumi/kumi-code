@@ -121,6 +121,58 @@ describe('Reviews', () => {
     expect(restarted.relay('tu1', 1, '').to).toBe('implementer')
   })
 
+  it("applies the outcomes of the reviewer's later report, even to a settled finding", () => {
+    const { reviews, review } = started()
+    reviews.sent('tu1', 1, 'implementer', '')
+    reviews.answer('impl', { role: 'implementer', finding: 1, outcome: 'fixed', reply: 'Done.' })
+    reviews.sent('tu1', 1, 'reviewer', '')
+    reviews.answer('rev', { role: 'reviewer', finding: 1, verdict: 'accept', reply: 'Verified.' })
+    reviews.setClosed('tu1', 2, true)
+    const again = {
+      findings: [
+        // Reordered, with a rewritten summary: it matches by its short summary.
+        { file: 'src/b.ts', summary: 'Label duplicates another tab.', failure_scenario: '', outcome: 'skipped' },
+        { file: 'src/a.ts', line: 12, summary: 'The cache key ignores the site.', short_summary: 'Cache key ignores site', failure_scenario: '', outcome: 'no_change_needed' },
+        { file: 'src/c.ts', summary: 'Something new.', failure_scenario: '', outcome: 'fixed' },
+      ],
+    }
+    // Only the reviewer's report applies, and not the one the review came from.
+    expect(reviews.applyReport('impl', 'tu9', again)).toEqual([])
+    expect(reviews.applyReport('rev', 'tu1', again)).toEqual([])
+    expect(reviews.applyReport('rev', 'tu9', again)).toEqual([{ rank: 1, outcome: 'no_change_needed' }])
+    expect(review.findings[0]).toMatchObject({ status: 'withdrawn', thread: [{}, {}, { from: 'reviewer', outcome: 'no_change_needed' }] })
+    // The user's closing stands; a new finding has nothing to apply to.
+    expect(review.findings[1]?.status).toBe('closed')
+    // Reporting the same again changes nothing.
+    expect(reviews.applyReport('rev', 'tu10', again)).toEqual([])
+    expect(reviews.applyReport('rev', 'tu11', { findings: [{ ...again.findings[1], outcome: 'fixed' }] })).toEqual([{ rank: 1, outcome: 'fixed' }])
+    expect(review.findings[0]?.status).toBe('resolved')
+  })
+
+  it('lets the reviewer send a finding it settled back to the implementer', () => {
+    const { reviews, review } = started()
+    reviews.sent('tu1', 1, 'implementer', '')
+    reviews.answer('impl', { role: 'implementer', finding: 1, outcome: 'fixed', reply: 'Added the site id.' })
+    reviews.sent('tu1', 1, 'reviewer', '')
+    reviews.answer('rev', { role: 'reviewer', finding: 1, verdict: 'accept', reply: 'Verified.' })
+    expect(() => reviews.answer('rev', { role: 'reviewer', finding: 1, verdict: 'accept', reply: 'Again.' })).toThrow('settled already')
+    expect(reviews.answer('rev', { role: 'reviewer', finding: 1, verdict: 'reopen', reply: 'The finding was wrong: undo the fix.' })).toContain('goes back to the implementer')
+    expect(review.findings[0]?.status).toBe('reopened')
+    const back = reviews.relay('tu1', 1, '')
+    expect(back.to).toBe('implementer')
+    expect(parseRelay(back.text)?.reply?.text).toBe('The finding was wrong: undo the fix.')
+    expect(back.text).toContain('undo exactly that change')
+    // Undone, answered as needing no change, and accepted: withdrawn.
+    reviews.sent('tu1', 1, 'implementer', '')
+    reviews.answer('impl', { role: 'implementer', finding: 1, outcome: 'no_change_needed', reply: 'Undone.' })
+    reviews.sent('tu1', 1, 'reviewer', '')
+    reviews.answer('rev', { role: 'reviewer', finding: 1, verdict: 'accept', reply: 'Right.' })
+    expect(review.findings[0]?.status).toBe('withdrawn')
+    // A finding the user closed stays closed.
+    reviews.setClosed('tu1', 2, true)
+    expect(() => reviews.answer('rev', { role: 'reviewer', finding: 2, verdict: 'reopen', reply: '' })).toThrow('The user closed finding 2')
+  })
+
   it('keeps one review per conversation and role', () => {
     const { reviews } = started()
     reviews.start('tu2', 'rev2', 'impl', report)

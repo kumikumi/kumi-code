@@ -207,7 +207,10 @@ What the code does, precisely. `README.md` is the short version.
   stored, as relay cards.
 - The agents answer with tools of Kumi Code's MCP server `review` (see Next step):
   `respond_to_finding({ finding, outcome: fixed | no_change_needed, reply })` for the implementer,
-  `resolve_finding({ finding, verdict: accept | reopen, reply })` for the reviewer. Every
+  `resolve_finding({ finding, verdict: accept | reopen, reply })` for the reviewer, who may also
+  reopen a finding it settled (resolved or withdrawn): it goes back to the implementer, say to undo
+  a fix for a finding that was wrong, which the implementer is told to answer as needing no change.
+  Every
   conversation has both, always loaded; a call
   from a conversation that is not that review's implementer or reviewer, or about a finding that
   is not waiting on that agent, is a tool error, and one about a finding the user closed says so.
@@ -219,6 +222,15 @@ What the code does, precisely. `README.md` is the short version.
   headed by its speaker, colored by role), a note field and the send button (⌘↵). Sending a finding picks it, and a picked finding stays the current one, settled or not, until
   the user picks another. *Reviewer* /
   *Implementer* switches to the other conversation; *End* removes the review.
+- The reviewer can say at any time what became of its findings, as Claude Code's agents do: by
+  calling `ReportFindings` again with an `outcome` on findings. Kumi Code sees the call finish
+  (`onToolDone`) and, when it comes from a review's reviewer and is not the call the review came
+  from, matches each finding to the review's (same file and summary, else file and title, else
+  file and line; each once) and applies its outcome in any status but closed: `fixed` → resolved,
+  `no_change_needed` and `skipped` → withdrawn, each with a thread entry ("Reviewer · withdrew it").
+  The reviewer's relayed instructions and `resolve_finding`'s description tell it so. The call's
+  card shows as *Findings reported again*, each outcome with the finding it went to, and offers no
+  new review.
 - Deleting a conversation ends its reviews.
 
 ## Next step

@@ -66,17 +66,17 @@
   }
 
   function who(entry: FindingReply): string {
+    if (entry.from === 'user') return 'Your note'
+    if (entry.from === 'implementer') return entry.outcome === 'fixed' ? 'Implementer · fixed' : 'Implementer · no change needed'
     switch (entry.outcome) {
-      case 'fixed':
-        return 'Implementer · fixed'
-      case 'no_change_needed':
-        return 'Implementer · no change needed'
       case 'accept':
         return 'Reviewer · accepted'
       case 'reopen':
         return 'Reviewer · reopened'
+      case 'fixed':
+        return 'Reviewer · reported it fixed'
       default:
-        return 'Your note'
+        return 'Reviewer · withdrew it'
     }
   }
 </script>

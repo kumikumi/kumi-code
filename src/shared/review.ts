@@ -1,7 +1,7 @@
 // Code review rules the main process and the renderer share: reading the
 // findings of a ReportFindings call, and where a finding goes next.
 
-import type { Finding, FindingStatus, ReviewFinding, ReviewRole } from './types'
+import type { Finding, FindingStatus, ReportedOutcome, Review, ReviewFinding, ReviewRole } from './types'
 
 /** The findings of a ReportFindings call's input, most severe first. */
 export function parseFindings(input: Record<string, unknown>): Finding[] {
@@ -18,6 +18,39 @@ export function parseFindings(input: Record<string, unknown>): Finding[] {
       verdict: f.verdict === 'CONFIRMED' || f.verdict === 'PLAUSIBLE' ? f.verdict : null,
     }
   })
+}
+
+/** The outcome each finding of a ReportFindings call gives, in the same order as parseFindings. */
+export function parseOutcomes(input: Record<string, unknown>): (ReportedOutcome | null)[] {
+  const list = Array.isArray(input.findings) ? (input.findings as Record<string, unknown>[]) : []
+  return list.map((f) => (f.outcome === 'fixed' || f.outcome === 'skipped' || f.outcome === 'no_change_needed' ? f.outcome : null))
+}
+
+/**
+ * The review finding each finding of a later report is about, by rank: the same file and
+ * summary, else the same file and title, else the same file and line. Each review finding
+ * matches once; null for a finding the review does not have.
+ */
+export function matchReport(review: Review, findings: Finding[]): (number | null)[] {
+  const norm = (s: string): string => s.replace(/\s+/g, ' ').trim().toLowerCase()
+  const taken = new Set<number>()
+  const ranks: (number | null)[] = findings.map(() => null)
+  const passes: ((a: Finding, b: ReviewFinding) => boolean)[] = [
+    (a, b) => norm(a.summary) === norm(b.summary),
+    (a, b) => norm(a.title) === norm(b.title),
+    (a, b) => a.line !== null && a.line === b.line,
+  ]
+  for (const same of passes) {
+    findings.forEach((f, i) => {
+      if (ranks[i] !== null) return
+      const match = review.findings.find((r) => !taken.has(r.rank) && r.file === f.file && same(f, r))
+      if (match) {
+        ranks[i] = match.rank
+        taken.add(match.rank)
+      }
+    })
+  }
+  return ranks
 }
 
 /** Nothing is left to do: the reviewer accepted it or the user closed it. */

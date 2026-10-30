@@ -111,12 +111,14 @@ export type ReviewRole = 'implementer' | 'reviewer'
 
 export type ImplementerOutcome = 'fixed' | 'no_change_needed'
 export type ReviewerVerdict = 'accept' | 'reopen'
+/** What a reviewer's later ReportFindings call says became of a finding. */
+export type ReportedOutcome = 'fixed' | 'skipped' | 'no_change_needed'
 
 /** An entry of a finding's thread: an agent's answer or a note the user sent with it. */
 export interface FindingReply {
   from: ReviewRole | 'user'
   /** null for the user's notes. */
-  outcome: ImplementerOutcome | ReviewerVerdict | null
+  outcome: ImplementerOutcome | ReviewerVerdict | ReportedOutcome | null
   text: string
   at: number
 }
