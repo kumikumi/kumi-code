@@ -251,15 +251,22 @@ What the code does, precisely. `README.md` is the short version.
   have.
 - A section appended to Claude Code's system prompt (`KUMI_INSTRUCTIONS`) says when to call it, as
   the desktop app's own instructions do: at the end of every turn that changed files, ran
-  commands or did multi-step work, before the closing message.
+  commands or did multi-step work, before the closing message. It also says that the app's one
+  action is `commit`, which holds while the project is a git repository with uncommitted changes:
+  the desktop app reports available actions in its `update_plan` results, which Kumi Code does not
+  have.
+- App actions: `commit` holds while `git status --porcelain` in the conversation's folder lists
+  anything (checked when `wrap_up` is called); its button is *Commit* and a click sends "Commit the
+  changes." for the agent to do. The schema's other actions are not actions Kumi Code has.
 - The result tells the agent whether the box shows its question. It refuses (a tool error) a
-  call without a recap, with app actions (`commit`, `create_pr`, … : Kumi Code has none), with
-  more than two buttons, with buttons but no `ask`, or with a button that starts with `/` or `!`
-  (it would run as a command). Fields that run long get advice for the next call.
+  call without a recap, with an app action that does not hold right now or that Kumi Code does not
+  have (saying which are available), with more than two buttons, with buttons but no `ask`, or
+  with a button that starts with `/` or `!` (it would run as a command). Fields that run long get
+  advice for the next call.
 - The box: the last successful `wrap_up` call with an `ask` and no user message after it shows,
-  below the transcript, as its recap, its question and its reply buttons, the first as the
-  primary one. A click sends the button's `message` (its label when it has none) as the user's
-  message, which ends the box. A call without an `ask` draws no box. `wrap_up` calls do not show
+  below the transcript, as its recap, its question and its buttons in the agent's order, the first
+  as the primary one. A click sends the button's `message` (a reply's label when it has none) as
+  the user's message, which ends the box. A call without an `ask` draws no box. `wrap_up` calls do not show
   in the transcript unless they fail. A `blocked` call marks the conversation as waiting
   (`meta.waiting`): its tab shows the attention dot until the next message.
 

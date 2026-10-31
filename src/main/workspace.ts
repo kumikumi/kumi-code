@@ -22,6 +22,7 @@ import { Previews } from '../core/previews'
 import { Reviews } from '../core/review'
 import type { ReviewAnswer } from '../core/review'
 import { KUMI_INSTRUCTIONS, KUMI_TOOLS, kumiServers } from '../core/kumi-tools'
+import { hasUncommittedChanges } from '../core/git'
 import { createScratchFolder, projectName } from '../core/sessions'
 import { wrapUpResult } from '../core/wrap-up'
 import type { Store, StoredWindow } from '../core/store'
@@ -445,8 +446,10 @@ export class Workspace {
   }
 
   /** A wrap_up call: the renderer draws the box from the transcript; a blocked one marks the tab as waiting. */
-  private wrapUp(id: string, input: Record<string, unknown>): { text: string; isError: boolean } {
-    const result = wrapUpResult(input)
+  private async wrapUp(id: string, input: Record<string, unknown>): Promise<{ text: string; isError: boolean }> {
+    // commit holds while there is something to commit.
+    const available = (await hasUncommittedChanges(this.opts.store.get().conversations[id]?.cwd ?? '')) ? ['commit'] : []
+    const result = wrapUpResult(input, available)
     if (!result.isError && parseWrapUp(input).blocked) this.conversations.get(id)?.setWaiting(true)
     return result
   }

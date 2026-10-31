@@ -25,10 +25,10 @@
 <div class="next-step">
   <div class="next-step-recap">{wrapUp.recap}</div>
   {#if wrapUp.ask}<div class="next-step-ask">{wrapUp.ask}</div>{/if}
-  {#if wrapUp.replies.length > 0}
+  {#if wrapUp.buttons.length > 0}
     <div class="next-step-actions">
-      {#each wrapUp.replies as reply, i (i)}
-        <button class={i === 0 ? 'primary' : ''} disabled={sending} title={reply.message} onclick={() => answer(reply.message)}>{reply.label}</button>
+      {#each wrapUp.buttons as button, i (i)}
+        <button class={i === 0 ? 'primary' : ''} disabled={sending} title={button.message} onclick={() => answer(button.message)}>{button.label}</button>
       {/each}
     </div>
   {/if}

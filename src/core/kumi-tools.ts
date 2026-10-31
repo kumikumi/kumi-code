@@ -18,12 +18,12 @@ export const KUMI_TOOLS = ['mcp__ccd_turn__wrap_up', 'mcp__review__respond_to_fi
 
 /** Appended to Claude Code's system prompt: when to call wrap_up, as the desktop app tells its agents. */
 export const KUMI_INSTRUCTIONS = `# Next step
-Every turn in which you changed files, ran commands or completed multi-step work closes with mcp__ccd_turn__wrap_up, called when the turn's work is done and before your closing message: it fills the next-step box, and without the call the app has nothing to draw. The recap says in two or three sentences what is now true and where it stands, including what is not done or not verified. When the turn leaves the user a decision to make or a step to take, add one short question (the decision alone, no reason or recommendation) and one or two reply buttons that answer it, your pick first; with nothing pending, send the recap alone and no box is drawn. Your closing message follows the call, the last thing you say: your answer to the user in full, which the recap never replaces. Skip the call for short answers and pure conversation.`
+Every turn in which you changed files, ran commands or completed multi-step work closes with mcp__ccd_turn__wrap_up, called when the turn's work is done and before your closing message: it fills the next-step box, and without the call the app has nothing to draw. The recap says in two or three sentences what is now true and where it stands, including what is not done or not verified. When the turn leaves the user a decision to make or a step to take, add one short question (the decision alone, no reason or recommendation) and one or two buttons that answer it, your pick first: replies, or the app's one action, {"action": "commit"}, which holds while the project is a git repository with uncommitted changes; with nothing pending, send the recap alone and no box is drawn. Your closing message follows the call, the last thing you say: your answer to the user in full, which the recap never replaces. Skip the call for short answers and pure conversation.`
 
 export interface KumiToolHandlers {
   /** A review answer; returns what the tool tells the agent, or throws it as an error. */
   answer(a: ReviewAnswer): string
-  wrapUp(input: Record<string, unknown>): { text: string; isError: boolean }
+  wrapUp(input: Record<string, unknown>): Promise<{ text: string; isError: boolean }>
 }
 
 // The desktop app's description, without its sentence about update_plan, a tool Kumi Code does not have.
@@ -78,7 +78,7 @@ export function kumiServers(handlers: KumiToolHandlers): Record<string, McpServe
   }
   const finding = z.number().int().describe('The number of the finding, from the relayed <code-review> message.')
   const wrapUp = tool('wrap_up', WRAP_UP_DESCRIPTION, wrapUpShape, async (args) => {
-    const result = handlers.wrapUp(args as Record<string, unknown>)
+    const result = await handlers.wrapUp(args as Record<string, unknown>)
     return { content: [{ type: 'text' as const, text: result.text }], isError: result.isError }
   })
   // Their input shapes differ.

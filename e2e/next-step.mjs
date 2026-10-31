@@ -1,6 +1,7 @@
 // The next-step box: the agent calls wrap_up by itself after a turn that changed a file; a
 // wrap_up with a question and buttons draws the box and marks the tab as waiting, and a click
-// answers as the user.
+// answers as the user. The commit action draws a Commit button while there is something to commit.
+import { execFileSync } from 'node:child_process'
 import { check, deleteConversations, launch, newUserData, shots, startConversation, waitForReply, waitUntil } from './launch.mjs'
 
 const { app, page } = await launch(newUserData())
@@ -36,6 +37,25 @@ await waitUntil(page, 'the answer is sent', async () => (await page.locator('.ta
 check((await box.count()) === 0, "the box goes once it is answered with the button's message")
 check((await tabStatus()) !== 'attention', 'answering ends the waiting')
 await waitForReply(page, 3)
+
+// The commit action, once the folder is a git repository with an uncommitted file.
+execFileSync('git', ['init', '-q'], { cwd: (await page.evaluate((id) => window.kumi.getConversation(id), id)).meta.cwd })
+await page.locator('.composer textarea').fill(
+  'Call the mcp__ccd_turn__wrap_up tool with recap "notes.txt is ready.", ask "Commit notes.txt?" and actions [{"action": "commit"}, {"label": "Not yet"}]. Then reply with just the word DONE.',
+)
+await page.keyboard.press('Enter')
+await waitForReply(page, 4)
+await box.waitFor()
+check((await buttons.allInnerTexts()).join('|') === 'Commit|Not yet' && (await buttons.first().getAttribute('class'))?.includes('primary'), 'the commit action draws a Commit button, first as asked')
+await buttons.first().click()
+await waitUntil(page, 'the commit request is sent', async () => (await page.locator('.tab-pane:not([hidden]) .item.user .user-text').allInnerTexts()).includes('Commit the changes.'))
+check(true, 'Commit asks the agent to commit the changes')
+// The test does not commit: deny the agent's git call if it asks, and stop the turn.
+await waitUntil(page, 'the agent asks or ends its turn', async () => {
+  const meta = (await page.evaluate((id) => window.kumi.getConversation(id), id)).meta
+  for (const request of meta.requests) await page.evaluate(([id, rid]) => window.kumi.respond(id, rid, { kind: 'permission', allow: false, message: '' }), [id, request.id])
+  return meta.status === 'idle'
+})
 
 console.log(`screenshots: ${shots}`)
 await page.evaluate(() => window.kumi.newTab())
