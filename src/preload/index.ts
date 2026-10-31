@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { IPC } from '@shared/types'
-import type { BrowserState, ConversationMeta, DragHover, KumiApi, Review, TranscriptItem, UsageWindow, WindowState } from '@shared/types'
+import type { BrowserState, ConversationMeta, DragHover, KumiApi, Review, TerminalState, TranscriptItem, UsageWindow, WindowState } from '@shared/types'
 
 function on<T extends unknown[]>(channel: string, cb: (...args: T) => void): () => void {
   const listener = (_e: Electron.IpcRendererEvent, ...args: unknown[]): void => cb(...(args as T))
@@ -45,6 +45,12 @@ const api: KumiApi = {
   browserAction: (id, action) => ipcRenderer.invoke(IPC.browserAction, id, action),
   browserInput: (id, tabId, input) => ipcRenderer.send(IPC.browserInput, id, tabId, input),
   watchBrowser: (id, watching) => ipcRenderer.send(IPC.watchBrowser, id, watching),
+  getTerminals: (id) => ipcRenderer.invoke(IPC.getTerminals, id),
+  terminalAction: (id, action) => ipcRenderer.invoke(IPC.terminalAction, id, action),
+  terminalSnapshot: (id, tabId) => ipcRenderer.invoke(IPC.terminalSnapshot, id, tabId),
+  terminalInput: (id, tabId, data) => ipcRenderer.send(IPC.terminalInput, id, tabId, data),
+  terminalResize: (id, tabId, cols, rows) => ipcRenderer.send(IPC.terminalResize, id, tabId, cols, rows),
+  watchTerminals: (id, watching) => ipcRenderer.send(IPC.watchTerminals, id, watching),
   onWindowState: (cb) => on<[WindowState]>(IPC.evWindowState, cb),
   onConversationMeta: (cb) => on<[string, ConversationMeta, number]>(IPC.evConversationMeta, cb),
   onConversationItems: (cb) => on<[string, TranscriptItem[], number]>(IPC.evConversationItems, cb),
@@ -54,6 +60,9 @@ const api: KumiApi = {
   onReviews: (cb) => on<[Review[]]>(IPC.evReviews, cb),
   onBrowser: (cb) => on<[string, BrowserState]>(IPC.evBrowser, cb),
   onBrowserFrame: (cb) => on<[string, string, Uint8Array, number, number]>(IPC.evBrowserFrame, cb),
+  onTerminals: (cb) => on<[string, TerminalState]>(IPC.evTerminals, cb),
+  onTerminalOutput: (cb) => on<[string, string, string, number]>(IPC.evTerminalOutput, cb),
+  onTerminalShow: (cb) => on<[string, string]>(IPC.evTerminalShow, cb),
 }
 
 contextBridge.exposeInMainWorld('kumi', api)

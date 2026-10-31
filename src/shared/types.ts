@@ -199,6 +199,28 @@ export type BrowserInput =
   | { type: 'wheel'; x: number; y: number; deltaX: number; deltaY: number; modifiers: number }
   | { type: 'key'; action: 'down' | 'up'; key: string; code: string; keyCode: number; modifiers: number }
 
+// ---- terminal ----
+
+export interface TerminalTabInfo {
+  id: string
+  title: string
+  /** Where its shell started. */
+  cwd: string
+  openedBy: 'user' | 'agent'
+  /** A command runs in it; null when that cannot be told. */
+  running: boolean | null
+  exited: boolean
+}
+
+/** A conversation's Terminal panel. */
+export interface TerminalState {
+  tabs: TerminalTabInfo[]
+  activeTabId: string | null
+}
+
+/** What the user does in the terminal pane's tab strip. */
+export type TerminalAction = { kind: 'open' } | { kind: 'select' | 'close'; tabId: string }
+
 // ---- requests the agent is waiting on ----
 
 export interface QuestionOption {
@@ -365,6 +387,12 @@ export const IPC = {
   browserAction: 'browser:action',
   browserInput: 'browser:input',
   watchBrowser: 'browser:watch',
+  getTerminals: 'terminal:get',
+  terminalAction: 'terminal:action',
+  terminalSnapshot: 'terminal:snapshot',
+  terminalInput: 'terminal:input',
+  terminalResize: 'terminal:resize',
+  watchTerminals: 'terminal:watch',
   evWindowState: 'ev:window',
   evConversationMeta: 'ev:conversation-meta',
   evConversationItems: 'ev:conversation-items',
@@ -374,6 +402,9 @@ export const IPC = {
   evReviews: 'ev:reviews',
   evBrowser: 'ev:browser',
   evBrowserFrame: 'ev:browser-frame',
+  evTerminals: 'ev:terminals',
+  evTerminalOutput: 'ev:terminal-output',
+  evTerminalShow: 'ev:terminal-show',
 } as const
 
 export interface KumiApi {
@@ -430,6 +461,16 @@ export interface KumiApi {
   browserInput(conversationId: string, tabId: string, input: BrowserInput): void
   /** Whether this window shows the conversation's browser, and so wants its frames. */
   watchBrowser(conversationId: string, watching: boolean): void
+  /** The conversation's Terminal panel; no tabs when it has none. */
+  getTerminals(conversationId: string): Promise<TerminalState>
+  terminalAction(conversationId: string, action: TerminalAction): Promise<void>
+  /** A tab's screen as escape sequences to replay, and the output chunk it ends at. */
+  terminalSnapshot(conversationId: string, tabId: string): Promise<{ data: string; seq: number }>
+  /** The user's typing. Not awaited: it comes often. */
+  terminalInput(conversationId: string, tabId: string, data: string): void
+  terminalResize(conversationId: string, tabId: string, cols: number, rows: number): void
+  /** Whether this window shows the conversation's terminal pane, and so wants its output. */
+  watchTerminals(conversationId: string, watching: boolean): void
   onWindowState(cb: (state: WindowState) => void): () => void
   onConversationMeta(cb: (id: string, meta: ConversationMeta, rev: number) => void): () => void
   onConversationItems(cb: (id: string, items: TranscriptItem[], rev: number) => void): () => void
@@ -441,4 +482,9 @@ export interface KumiApi {
   onBrowser(cb: (conversationId: string, state: BrowserState) => void): () => void
   /** A JPEG frame of the active tab of a browser this window watches. */
   onBrowserFrame(cb: (conversationId: string, tabId: string, jpeg: Uint8Array, width: number, height: number) => void): () => void
+  onTerminals(cb: (conversationId: string, state: TerminalState) => void): () => void
+  /** A tab's output, numbered, while this window watches the conversation's terminals. */
+  onTerminalOutput(cb: (conversationId: string, tabId: string, data: string, seq: number) => void): () => void
+  /** The agent opened a tab for the user to see: show the pane at it. */
+  onTerminalShow(cb: (conversationId: string, tabId: string) => void): () => void
 }

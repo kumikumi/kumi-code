@@ -1,10 +1,11 @@
-<!-- The pane beside the transcript, which holds the review panel or the browser. Its left edge resizes it; each kind of pane keeps its own width. -->
+<!-- The pane beside the transcript, which holds the review panel, the browser or the terminal. Its left edge resizes it; each kind of pane keeps its own width. -->
 <script module lang="ts">
-  type Kind = 'review' | 'browser'
+  type Kind = 'review' | 'browser' | 'terminal'
 
   const SIZES: Record<Kind, { key: string; width: number; min: number }> = {
     review: { key: 'reviewPanelWidth', width: 340, min: 280 },
     browser: { key: 'browserPanelWidth', width: 560, min: 320 },
+    terminal: { key: 'terminalPanelWidth', width: 560, min: 320 },
   }
   /** What the transcript keeps at least when the pane widens. */
   const MIN_MAIN = 400
@@ -13,6 +14,7 @@
   const widths = $state<Record<Kind, number>>({
     review: Number(localStorage.getItem(SIZES.review.key)) || SIZES.review.width,
     browser: Number(localStorage.getItem(SIZES.browser.key)) || SIZES.browser.width,
+    terminal: Number(localStorage.getItem(SIZES.terminal.key)) || SIZES.terminal.width,
   })
 
   function setWidth(kind: Kind, width: number): void {

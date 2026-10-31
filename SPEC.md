@@ -19,10 +19,13 @@ What the code does, precisely. `README.md` is the short version.
   - `keys.ts` — key names and shortcuts → DevTools protocol key events.
   - `urls.ts` — local pages, typed URLs, origins, redaction.
   - `previews.ts` — `Previews`: dev servers from a project's `.claude/launch.json`.
+  - `terminal-command.ts` — what `run_in_terminal` refuses to type, and the shell's parse check.
 - `src/main/` — Electron main process: `workspace.ts` (windows, tabs, open conversations and
-  their browsers), `drag.ts` (tabs dragged out of a strip), `index.ts` (IPC, menu, startup),
-  `browser.ts` (`Browser`, `BrowserTab`: a conversation's offscreen tabs), `browser-tools.ts` (the
-  `browser` MCP server), `browser-page.ts` (the helper the tools run inside a page).
+  their browsers and terminals), `drag.ts` (tabs dragged out of a strip), `index.ts` (IPC, menu,
+  startup), `browser.ts` (`Browser`, `BrowserTab`: a conversation's offscreen tabs),
+  `browser-tools.ts` (the `browser` MCP server), `browser-page.ts` (the helper the tools run inside
+  a page), `terminal.ts` (`Terminals`, `TerminalTab`: a conversation's shells),
+  `terminal-tools.ts` (the `terminal` MCP server).
 - `src/preload/` — the `window.kumi` bridge (`KumiApi` in `src/shared/types.ts`).
 - `src/shared/` — `types.ts` (everything that crosses IPC), `review.ts` (review rules the main
   process and the renderer share), `wrap-up.ts` (reading a `wrap_up` call).
@@ -30,7 +33,7 @@ What the code does, precisely. `README.md` is the short version.
   `Conversation.svelte`, `Item.svelte` (a transcript item), `ToolInput.svelte`, `Requests.svelte`,
   `Composer.svelte`, `Rich.svelte` (markdown or a code block), `Todos.svelte`, `FindingsCard.svelte`,
   `FindingDetails.svelte`, `RelayCard.svelte`, `ReviewPanel.svelte`, `Dock.svelte` (the pane beside
-  the transcript), `BrowserPane.svelte`, `NextStep.svelte`; `state.svelte.ts`
+  the transcript), `BrowserPane.svelte`, `TerminalPane.svelte`, `NextStep.svelte`; `state.svelte.ts`
   (window and conversation state), `markdown.ts`, `tools.ts`, `util.ts`.
 
 ## Auth
@@ -270,6 +273,45 @@ What the code does, precisely. `README.md` is the short version.
   in the transcript unless they fail. A `blocked` call marks the conversation as waiting
   (`meta.waiting`): its tab shows the attention dot until the next message.
 
+## Terminal
+
+- Each open conversation may have a Terminal panel: tabs that each run the user's login shell
+  (`$SHELL -l`, in a pseudo-terminal from `node-pty`, with the user's environment less Kumi Code's
+  own `ELECTRON_*` and `KUMI_*` variables, and `TERM=xterm-256color`). The user types in them in
+  the terminal pane; the agent runs commands in them and reads them. Shells end with their
+  conversation's tab, or on quit.
+- Each tab keeps its screen in a headless terminal (`@xterm/headless`, 5000 lines of scrollback),
+  so the tools read it whether or not the pane shows it. Whether a command runs is whether the
+  pseudo-terminal's foreground process is the shell. Tab ids count from "0" per conversation; the
+  primary tab is the first one open. `node-pty` ships prebuilt binaries whose `spawn-helper` an
+  install leaves without its execute bit; `postinstall` sets it.
+- Tools: the `terminal` in-process MCP server copies the tool set of the Claude desktop app's
+  Terminal panel, with its names (`mcp__terminal__…`), schemas (`_consent` included, and ignored)
+  and descriptions: `read_terminal`, `list_terminal_tabs`, `open_terminal_tab`, `run_in_terminal`,
+  `stop_terminal_tab`.
+  - `read_terminal` returns a tab's last lines (200 by default, at most 1000), after waiting for
+    new output to arrive and settle when asked.
+  - `run_in_terminal` opens a tab (in the conversation's folder, or a folder inside it), waits for
+    the shell's startup files (output quiet for 400 ms), types the line and Enter, and does not
+    show the pane. Before anything is typed it refuses lines `terminal-command.ts` refuses (more
+    than one line, control or non-ASCII characters, a line the prompt would wait on, here-documents,
+    history expansions and commands, `$_`, comments, prompt, history and startup parameters, shell
+    hooks, traps) and lines the user's shell cannot parse (`$SHELL -n -c`), a subset of what its
+    description lists.
+  - `open_terminal_tab` opens a tab and shows the pane at it.
+  - `stop_terminal_tab` sends Ctrl-C (or closes the tab) only for tabs the agent opened and the
+    user has not typed in.
+- Permission: `read_terminal`, `list_terminal_tabs` and `stop_terminal_tab` are in `allowedTools`;
+  `run_in_terminal` and `open_terminal_tab` go through the permission prompt, so the user approves
+  the exact line, or the folder.
+- The pane (the dock's third kind; *Terminal* in the header, 560 px by default, its width kept as
+  `terminalPanelWidth`): tabs (a running dot, close, new shell), and the active tab in xterm.js. A
+  tab starts from a snapshot of its screen (`@xterm/addon-serialize`) and continues with its
+  output after it: output is numbered, sent only to windows that show the pane, and chunks the
+  snapshot already holds are skipped. The shell takes the pane's size. A link
+  `[title](#terminal/<tab_id>)` in the agent's text shows the pane at that tab; the system prompt
+  section asks the agent to link tabs that way.
+
 ## Browser
 
 - Each open conversation may have a browser: tabs the agent drives with the browser tools and
@@ -349,7 +391,8 @@ Review } }`. Another version is an error. Transcripts live where Claude Code kee
 ## Not yet
 
 Packaging (and with it a login-shell `PATH` for apps started from Finder), @-file mentions,
-rewind and fork, diff and git panels, a terminal, settings and MCP screens, worktrees,
+rewind and fork, diff and git panels, settings and MCP screens, worktrees,
 notifications, light theme, non-Anthropic models. For code review: relaying without a click per
 step, starting a reviewer from the implementer, and review rounds after the fixes. For the
-browser: tabs restored after a restart, iframes in `read_page`, file uploads and downloads.
+browser: tabs restored after a restart, iframes in `read_page`, file uploads and downloads. For
+the terminal: tabs restored after a restart, and terminal snippets attached to messages.

@@ -33,6 +33,8 @@ import type {
   BrowserInput,
   BrowserState,
   ConversationSnapshot,
+  TerminalAction,
+  TerminalState,
   ConversationStatus,
   DragHover,
   Review,
@@ -46,6 +48,9 @@ import { isLocalUrl, normalizeUrl, originOf } from '../core/urls'
 import { Browser } from './browser'
 import { BROWSER_TOOLS_ALLOWED, browserServers, runTool } from './browser-tools'
 import type { BrowserToolContext } from './browser-tools'
+import { Terminals } from './terminal'
+import { TERMINAL_TOOLS_ALLOWED, terminalServers, terminalTools } from './terminal-tools'
+import type { TerminalToolContext } from './terminal-tools'
 
 export interface Tab {
   id: string
@@ -87,6 +92,9 @@ export class Workspace {
   /** Dev server configurations the user let each conversation start without asking. */
   private readonly allowedPreviews = new Map<string, Set<string>>()
   private readonly previews = new Previews()
+  private readonly terminals = new Map<string, Terminals>()
+  /** The renderers (web contents ids) that show each conversation's terminal pane. */
+  private readonly terminalWatchers = new Map<string, Set<number>>()
   private usage: UsageWindow | null = null
   private quitting = false
 
@@ -141,6 +149,7 @@ export class Workspace {
     const contentsId = win.webContents.id
     win.on('closed', () => {
       for (const id of this.browserWatchers.keys()) this.watchBrowser(contentsId, id, false)
+      for (const id of this.terminalWatchers.keys()) this.watchTerminals(contentsId, id, false)
       this.windows.delete(win.id)
       for (const tab of entry.tabs) this.releaseTab(tab)
       // The last window's layout stays saved, so the next launch restores it.
@@ -160,6 +169,7 @@ export class Workspace {
     this.quitting = true
     for (const conversation of this.conversations.values()) void conversation.stop()
     for (const browser of this.browsers.values()) browser.destroy()
+    for (const terminals of this.terminals.values()) terminals.destroy()
     this.previews.stopAll()
   }
 
@@ -532,6 +542,83 @@ export class Workspace {
     return runTool(this.browserContext(id), name, input)
   }
 
+  // ---- terminals ----
+
+  /** The conversation's Terminal panel; no tabs when it has none. */
+  terminalState(id: string): TerminalState {
+    return this.terminals.get(id)?.state() ?? { tabs: [], activeTabId: null }
+  }
+
+  /** What the user does in the terminal pane's tab strip. A tab the user opens starts in the conversation's folder. */
+  terminalAction(id: string, action: TerminalAction): void {
+    const terminals = this.terminalOf(id)
+    if (action.kind === 'open') terminals.open(this.opts.store.get().conversations[id]?.cwd ?? '', null, 'user')
+    else if (action.kind === 'select') terminals.select(action.tabId)
+    else terminals.close(action.tabId)
+  }
+
+  terminalSnapshot(id: string, tabId: string): { data: string; seq: number } {
+    return this.terminalOf(id).tab(tabId).snapshot()
+  }
+
+  /** The user's typing. */
+  terminalInput(id: string, tabId: string, data: string): void {
+    this.terminals.get(id)?.list().find((t) => t.id === tabId)?.write(data)
+  }
+
+  terminalResize(id: string, tabId: string, cols: number, rows: number): void {
+    this.terminals.get(id)?.list().find((t) => t.id === tabId)?.resize(cols, rows)
+  }
+
+  /** Whether a renderer shows the conversation's terminal pane: output goes only to those that do. */
+  watchTerminals(contentsId: number, id: string, watching: boolean): void {
+    const watchers = this.terminalWatchers.get(id) ?? new Set<number>()
+    if (watching) watchers.add(contentsId)
+    else watchers.delete(contentsId)
+    if (watchers.size > 0) this.terminalWatchers.set(id, watchers)
+    else this.terminalWatchers.delete(id)
+  }
+
+  /** Runs a terminal tool for a conversation, as its agent would. */
+  async terminalTool(id: string, name: string, input: Record<string, unknown>): Promise<unknown> {
+    const found = terminalTools(this.terminalContext(id)).find((t) => t.name === name)
+    if (!found) throw new Error(`No terminal tool ${name}`)
+    return found.handler(input as never, {})
+  }
+
+  private terminalOf(id: string): Terminals {
+    let terminals = this.terminals.get(id)
+    if (!terminals) {
+      terminals = new Terminals({
+        changed: () => {
+          const found = this.findTab(id)
+          if (found && !found.entry.win.isDestroyed()) found.entry.win.webContents.send(IPC.evTerminals, id, this.terminalState(id))
+        },
+        output: (tabId, data, seq) => {
+          for (const contentsId of this.terminalWatchers.get(id) ?? []) {
+            const contents: WebContents | undefined = webContents.fromId(contentsId)
+            if (contents && !contents.isDestroyed()) contents.send(IPC.evTerminalOutput, id, tabId, data, seq)
+          }
+        },
+      })
+      this.terminals.set(id, terminals)
+    }
+    return terminals
+  }
+
+  private terminalContext(id: string): TerminalToolContext {
+    return {
+      terminals: () => this.terminalOf(id),
+      existing: () => this.terminals.get(id) ?? null,
+      cwd: this.opts.store.get().conversations[id]?.cwd ?? '',
+      show: (tabId) => {
+        this.terminalOf(id).select(tabId)
+        const found = this.findTab(id)
+        if (found && !found.entry.win.isDestroyed()) found.entry.win.webContents.send(IPC.evTerminalShow, id, tabId)
+      },
+    }
+  }
+
   private browserOf(id: string): Browser {
     let browser = this.browsers.get(id)
     if (!browser) {
@@ -574,8 +661,9 @@ export class Workspace {
       mcpServers: () => ({
         ...kumiServers({ answer: (a) => this.answer(id, a), wrapUp: (input) => this.wrapUp(id, input) }),
         ...browserServers(this.browserContext(id)),
+        ...terminalServers(this.terminalContext(id)),
       }),
-      allowedTools: [...KUMI_TOOLS, ...BROWSER_TOOLS_ALLOWED],
+      allowedTools: [...KUMI_TOOLS, ...BROWSER_TOOLS_ALLOWED, ...TERMINAL_TOOLS_ALLOWED],
       allows: (tool, input) => this.browserAllows(id, tool, input),
       allowed: (tool, input) => this.browserAllowed(id, tool, input),
     }
@@ -705,6 +793,9 @@ export class Workspace {
     this.browsers.get(tab.conversationId)?.destroy()
     this.browsers.delete(tab.conversationId)
     this.browserWatchers.delete(tab.conversationId)
+    this.terminals.get(tab.conversationId)?.destroy()
+    this.terminals.delete(tab.conversationId)
+    this.terminalWatchers.delete(tab.conversationId)
     this.allowedPreviews.delete(tab.conversationId)
   }
 

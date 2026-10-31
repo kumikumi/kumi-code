@@ -18,7 +18,11 @@ export function codeBlockHtml(code: string, lang: string): string {
   return `<div class="codeblock"><div class="codeblock-bar"><span>${escape(lang)}</span><button class="ghost small" data-copy>Copy</button></div><pre data-lang="${escape(lang)}">${escape(code)}</pre></div>`
 }
 
-/** Clicks in rendered HTML: copy buttons, and links, which open in the browser. */
+/**
+ * Clicks in rendered HTML: copy buttons, and links, which open in the browser. A link to
+ * a terminal tab (#terminal/<tab_id>) raises a `terminallink` event with the tab's id for
+ * the conversation to show it.
+ */
 export function onRichClick(e: MouseEvent): void {
   const target = e.target as HTMLElement
   const copy = target.closest('[data-copy]')
@@ -26,7 +30,9 @@ export function onRichClick(e: MouseEvent): void {
   const link = target.closest('a')
   if (link) {
     e.preventDefault()
-    window.open(link.href)
+    const tab = /^#terminal\/(.+)$/.exec(link.getAttribute('href') ?? '')?.[1]
+    if (tab) link.dispatchEvent(new CustomEvent('terminallink', { bubbles: true, detail: decodeURIComponent(tab) }))
+    else window.open(link.href)
   }
 }
 

@@ -1,7 +1,7 @@
-<!-- A conversation: its transcript, task list, pending requests and the composer, and beside them a pane with the review it is in or its browser. -->
+<!-- A conversation: its transcript, task list, pending requests and the composer, and beside them a pane with the review it is in, its browser or its terminal. -->
 <script lang="ts">
   import { untrack } from 'svelte'
-  import type { BrowserState } from '@shared/types'
+  import type { BrowserState, TerminalState } from '@shared/types'
   import { parseWrapUp, WRAP_UP_TOOL } from '@shared/wrap-up'
   import BrowserPane from './BrowserPane.svelte'
   import Composer from './Composer.svelte'
@@ -9,6 +9,7 @@
   import Item from './Item.svelte'
   import NextStep from './NextStep.svelte'
   import Requests from './Requests.svelte'
+  import TerminalPane from './TerminalPane.svelte'
   import ReviewPanel from './ReviewPanel.svelte'
   import Todos from './Todos.svelte'
   import { api, app, conversation } from './state.svelte'
@@ -19,6 +20,7 @@
   /** Within this many pixels of the bottom, the transcript follows new output. */
   const STICK_DISTANCE = 80
   const NO_BROWSER: BrowserState = { tabs: [], activeTabId: null, activity: null }
+  const NO_TERMINALS: TerminalState = { tabs: [], activeTabId: null }
 
   // A tab's conversation never changes; App keys the component by it.
   // svelte-ignore state_referenced_locally
@@ -29,7 +31,8 @@
   let renameError = $state<string | null>(null)
   let tasksOpen = $state(true)
   /** What the pane beside the transcript shows; null when it is closed. */
-  let pane = $state<'review' | 'browser' | null>(null)
+  let pane = $state<'review' | 'browser' | 'terminal' | null>(null)
+  let root = $state<HTMLDivElement>()
   let seenReview: string | null = null
   let browserWasOpen = false
 
@@ -71,9 +74,24 @@
     browserWasOpen = open
   })
 
-  function toggle(which: 'review' | 'browser'): void {
+  function toggle(which: 'review' | 'browser' | 'terminal'): void {
     pane = pane === which ? null : which
   }
+
+  /** Shows the terminal pane at a tab: the agent opened it for the user, or the user clicked a link to it. */
+  function showTerminal(tabId: string): void {
+    pane = 'terminal'
+    if (c.terminals?.tabs.some((t) => t.id === tabId)) void api.terminalAction(id, { kind: 'select', tabId })
+  }
+
+  $effect(() => api.onTerminalShow((conversationId, tabId) => conversationId === id && showTerminal(tabId)))
+  $effect(() => {
+    const target = root
+    if (!target) return
+    const onLink = (e: Event): void => showTerminal(String((e as CustomEvent<string>).detail))
+    target.addEventListener('terminallink', onLink)
+    return () => target.removeEventListener('terminallink', onLink)
+  })
 
   // New output, or coming back into view: follow the bottom unless scrolled up.
   $effect(() => {
@@ -93,7 +111,7 @@
     {#if c.error}<div class="notice error">{c.error}</div>{:else}<div class="muted">Loading…</div>{/if}
   </div>
 {:else}
-  <div class="conversation">
+  <div class="conversation" bind:this={root}>
     <header class="conversation-header">
       {#if renaming !== null}
         <!-- svelte-ignore a11y_autofocus -->
@@ -112,6 +130,9 @@
       {#if review}<button class={['ghost small', pane === 'review' && 'pane-on']} onclick={() => toggle('review')}>Review</button>{/if}
       <button class={['ghost small', pane === 'browser' && 'pane-on']} title="The conversation's browser" onclick={() => toggle('browser')}>
         Browser{#if browser?.activity}<span class="browser-activity-dot"></span>{/if}
+      </button>
+      <button class={['ghost small', pane === 'terminal' && 'pane-on']} title="The conversation's terminal" onclick={() => toggle('terminal')}>
+        Terminal{#if c.terminals?.tabs.some((t) => t.running)}<span class="terminal-running"></span>{/if}
       </button>
     </header>
     <div class="conversation-body">
@@ -153,6 +174,8 @@
         <Dock kind="review"><ReviewPanel {review} conversationId={id} {visible} onhide={() => (pane = null)} /></Dock>
       {:else if pane === 'browser'}
         <Dock kind="browser"><BrowserPane conversationId={id} browser={browser ?? NO_BROWSER} {visible} onhide={() => (pane = null)} /></Dock>
+      {:else if pane === 'terminal'}
+        <Dock kind="terminal"><TerminalPane conversationId={id} terminals={c.terminals ?? NO_TERMINALS} {visible} onhide={() => (pane = null)} /></Dock>
       {/if}
     </div>
   </div>

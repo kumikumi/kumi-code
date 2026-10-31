@@ -29,6 +29,9 @@ A barebones Claude Code frontend. TypeScript, Electron, Svelte and Anthropic's C
 - **Next step**: agents end a turn that did work with `mcp__ccd_turn__wrap_up`, the Claude desktop app's tool
   for its next-step box: a recap and, when something waits on the user, a question with reply
   buttons that answer it.
+- **Terminal**: each conversation has a Terminal panel of shell tabs that the user types in, with
+  the tools of the Claude desktop app's Terminal panel (`mcp__terminal__*`): the agent reads what
+  the user ran, and runs commands there that the user approves, line by line.
 - **New tab page**: past conversations (those started in Kumi Code, or every Claude Code session
   on this machine with the toggle) and a new conversation in a recent project, a picked folder
   or no project.

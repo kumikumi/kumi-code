@@ -58,6 +58,11 @@ export function summarizeTool(name: string, input: Record<string, unknown>, cwd:
     case 'mcp__review__resolve_finding':
       return { label: 'Resolve finding', detail: `${String(input.finding)} · ${input.verdict === 'accept' ? 'accepted' : 'reopened'}` }
   }
+  const terminal = /^mcp__terminal__(.+)$/.exec(name)?.[1]
+  if (terminal) {
+    const target = str(input.command) || (input.tab_id !== undefined ? `tab ${str(input.tab_id)}` : '') || str(input.cwd)
+    return { label: 'Terminal', detail: target ? `${terminal.replace(/_/g, ' ')} · ${target}` : terminal.replace(/_/g, ' ') }
+  }
   const browser = /^mcp__browser__(.+)$/.exec(name)?.[1]
   if (browser) {
     const what = browser === 'computer' ? str(input.action).replace(/_/g, ' ') : browser.replace(/_/g, ' ')

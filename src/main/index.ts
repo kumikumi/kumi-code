@@ -5,7 +5,7 @@ import { getAuthStatus } from '../core/auth'
 import { listConversations, recentProjects } from '../core/sessions'
 import { Store } from '../core/store'
 import { IPC } from '@shared/types'
-import type { BrowserAction, BrowserInput, EffortLevel, ImageData, PermissionMode, RequestResponse, TabStripGeometry } from '@shared/types'
+import type { BrowserAction, BrowserInput, EffortLevel, ImageData, PermissionMode, RequestResponse, TabStripGeometry, TerminalAction } from '@shared/types'
 import { TabDrag } from './drag'
 import { Workspace } from './workspace'
 
@@ -73,6 +73,13 @@ app.whenReady().then(() => {
   ipcMain.handle(IPC.browserAction, (_e, id: string, action: BrowserAction) => workspace.browserAction(id, action))
   ipcMain.on(IPC.browserInput, (_e, id: string, tabId: string, input: BrowserInput) => workspace.browserInput(id, tabId, input))
   ipcMain.on(IPC.watchBrowser, (e, id: string, watching: boolean) => workspace.watchBrowser(e.sender.id, id, watching))
+
+  ipcMain.handle(IPC.getTerminals, (_e, id: string) => workspace.terminalState(id))
+  ipcMain.handle(IPC.terminalAction, (_e, id: string, action: TerminalAction) => workspace.terminalAction(id, action))
+  ipcMain.handle(IPC.terminalSnapshot, (_e, id: string, tabId: string) => workspace.terminalSnapshot(id, tabId))
+  ipcMain.on(IPC.terminalInput, (_e, id: string, tabId: string, data: string) => workspace.terminalInput(id, tabId, data))
+  ipcMain.on(IPC.terminalResize, (_e, id: string, tabId: string, cols: number, rows: number) => workspace.terminalResize(id, tabId, cols, rows))
+  ipcMain.on(IPC.watchTerminals, (e, id: string, watching: boolean) => workspace.watchTerminals(e.sender.id, id, watching))
 
   // The end-to-end tests drive the browser tools without a model.
   if (import.meta.env.MODE === 'e2e') Object.assign(globalThis, { kumiWorkspace: workspace })
