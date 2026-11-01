@@ -314,7 +314,8 @@ export class Workspace {
     const folder = cwd ?? createScratchFolder(this.opts.scratchRoot)
     const id = randomUUID()
     this.opts.store.update((s) => {
-      s.conversations[id] = { cwd: folder, scratch, createdAt: Date.now(), ...DEFAULT_SETTINGS }
+      // A pick the model list no longer offers falls back to the default once the list is known.
+      s.conversations[id] = { cwd: folder, scratch, createdAt: Date.now(), ...DEFAULT_SETTINGS, ...s.lastPicked }
       if (!scratch) {
         s.recents = [{ path: folder, lastUsed: Date.now() }, ...s.recents.filter((r) => r.path !== folder)].slice(0, 50)
       }
@@ -749,6 +750,11 @@ export class Workspace {
         this.opts.store.update((state) => {
           const entry = state.conversations[id]
           if (entry) Object.assign(entry, s)
+        })
+      },
+      onPick: (pick) => {
+        this.opts.store.update((s) => {
+          s.lastPicked = { ...s.lastPicked, ...pick }
         })
       },
       onSessionChanged: () => {

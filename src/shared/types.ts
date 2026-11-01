@@ -8,6 +8,8 @@ export type PermissionMode = 'default' | 'acceptEdits' | 'plan' | 'auto' | 'bypa
 
 export interface ModelOption {
   value: string
+  /** The model id `value` stands for. */
+  resolvedModel: string
   displayName: string
   description: string
   efforts: EffortLevel[]
@@ -282,7 +284,10 @@ export interface ConversationMeta {
   compacting: boolean
   /** null: Claude Code's default. */
   model: string | null
+  /** null: the model's default, `defaultEffort`. */
   effort: EffortLevel | null
+  /** The effort Claude Code applies while `effort` is null; null when unknown or the model takes none. */
+  defaultEffort: EffortLevel | null
   permissionMode: PermissionMode
   models: ModelOption[]
   commands: CommandOption[]
@@ -440,8 +445,8 @@ export interface KumiApi {
   send(conversationId: string, text: string, images: ImageData[]): Promise<void>
   interrupt(conversationId: string): Promise<void>
   respond(conversationId: string, requestId: string, response: RequestResponse): Promise<void>
-  setModel(conversationId: string, model: string | null): Promise<void>
-  setEffort(conversationId: string, effort: EffortLevel | null): Promise<void>
+  setModel(conversationId: string, model: string): Promise<void>
+  setEffort(conversationId: string, effort: EffortLevel): Promise<void>
   setPermissionMode(conversationId: string, mode: PermissionMode): Promise<void>
   setDraft(conversationId: string, draft: string): void
   /** Switches to the conversation's tab, or opens it in a new tab of this window. */

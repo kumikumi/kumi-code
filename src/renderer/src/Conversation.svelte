@@ -1,6 +1,7 @@
 <!-- A conversation: its transcript, task list, pending requests and the composer, and beside them a pane with the review it is in, its browser or its terminal. -->
 <script lang="ts">
   import { untrack } from 'svelte'
+  import { modelRow } from '@shared/models'
   import type { BrowserState, TerminalState } from '@shared/types'
   import { parseWrapUp, WRAP_UP_TOOL } from '@shared/wrap-up'
   import BrowserPane from './BrowserPane.svelte'
@@ -170,7 +171,7 @@
             conversationId={meta.id}
             requests={meta.requests}
             cwd={meta.cwd}
-            supportsAuto={meta.models.find((m) => m.value === (meta.model ?? 'default'))?.supportsAutoMode === true}
+            supportsAuto={modelRow(meta.models, meta.model)?.supportsAutoMode === true}
           />
           <Composer {meta} {visible} />
         </div>

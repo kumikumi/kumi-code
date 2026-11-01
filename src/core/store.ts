@@ -42,6 +42,8 @@ export interface StoredState {
   conversations: Record<string, StoredConversation>
   recents: { path: string; lastUsed: number }[]
   reviews: Record<string, Review>
+  /** What the user last picked in the menus, which new conversations start with. Absent: never picked. */
+  lastPicked?: Partial<Pick<StoredConversation, 'model' | 'effort' | 'permissionMode'>>
 }
 
 export class Store {

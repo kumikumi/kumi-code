@@ -26,6 +26,7 @@ import type {
   TranscriptItem,
   UsageWindow,
 } from '@shared/types'
+import { modelRow } from '@shared/models'
 import { loginCommand } from './auth'
 import { agentEnvironment } from './environment'
 import { InputQueue } from './input-queue'
@@ -57,6 +58,8 @@ export interface ConversationEvents {
   onItems(items: TranscriptItem[]): void
   onUsage(usage: UsageWindow): void
   onSettings(settings: ConversationSettings): void
+  /** The user picked a model, effort or permission mode, which new conversations start with. */
+  onPick(pick: Partial<ConversationSettings>): void
   /** The session's title or modification time may have changed. */
   onSessionChanged(): void
   /** A tool call of the agent finished, live (not when a stored session is read). */
@@ -114,6 +117,7 @@ export class Conversation {
       compacting: false,
       model: settings.model,
       effort: settings.effort,
+      defaultEffort: null,
       permissionMode: settings.permissionMode,
       models: [],
       commands: [],
@@ -231,23 +235,28 @@ export class Conversation {
     this.emitMeta()
   }
 
-  async setModel(model: string | null): Promise<void> {
+  async setModel(model: string): Promise<void> {
     this.meta.model = model
     this.settingsChanged()
-    // `undefined` returns the session to Claude Code's default model.
-    if (this.q) await this.q.setModel(model ?? undefined)
+    if (this.q) await this.q.setModel(model)
+    this.events.onPick({ model })
+    // The effort and mode may not suit the new model, and its default effort differs.
+    await this.dropUnavailable()
+    await this.readDefaultEffort()
   }
 
-  async setEffort(effort: EffortLevel | null): Promise<void> {
+  async setEffort(effort: EffortLevel): Promise<void> {
     this.meta.effort = effort
     this.settingsChanged()
     if (this.q) await this.q.applyFlagSettings({ effortLevel: effort })
+    this.events.onPick({ effort })
   }
 
   async setPermissionMode(mode: PermissionMode): Promise<void> {
     this.meta.permissionMode = mode
     this.settingsChanged()
     if (this.q) await this.q.setPermissionMode(mode)
+    this.events.onPick({ permissionMode: mode })
   }
 
   setDraft(draft: string): void {
@@ -312,7 +321,9 @@ export class Conversation {
         return child
       },
     }
-    if (this.meta.model) options.model = this.meta.model
+    // Claude Code lists the model it starts on, offered or not, so a new session
+    // starts on the default until the list shows its model is still offered.
+    if (this.meta.model && this.persisted) options.model = this.meta.model
     if (this.meta.effort) options.effort = this.meta.effort
     if (this.persisted) options.resume = this.id
     else options.sessionId = this.id
@@ -326,6 +337,7 @@ export class Conversation {
       this.meta.models = init.models.map(
         (m): ModelOption => ({
           value: m.value,
+          resolvedModel: m.resolvedModel ?? m.value,
           displayName: m.displayName,
           description: m.description,
           efforts: m.supportedEffortLevels ?? [],
@@ -333,6 +345,9 @@ export class Conversation {
         }),
       )
       this.meta.commands = init.commands.map((c) => ({ name: c.name, description: c.description, argumentHint: c.argumentHint }))
+      await this.dropUnavailable()
+      if (this.meta.model && !options.model) await q.setModel(this.meta.model)
+      await this.readDefaultEffort()
       this.lastActivity = Date.now()
       if (this.meta.status === 'starting') this.setStatus('idle')
       else this.emitMeta()
@@ -553,6 +568,41 @@ export class Conversation {
   private settingsChanged(): void {
     this.events.onSettings({ model: this.meta.model, effort: this.meta.effort, permissionMode: this.meta.permissionMode })
     this.emitMeta()
+  }
+
+  /** Falls back to Claude Code's default for a model, effort or mode the model list does not offer. */
+  private async dropUnavailable(): Promise<void> {
+    const { models, model, effort, permissionMode } = this.meta
+    if (models.length === 0) return
+    const keepModel = model === null || modelRow(models, model) !== undefined
+    const row = modelRow(models, keepModel ? model : null)
+    const keepEffort = effort === null || row?.efforts.includes(effort) === true
+    const keepMode = permissionMode !== 'auto' || row?.supportsAutoMode === true
+    if (keepModel && keepEffort && keepMode) return
+    if (!keepModel) this.meta.model = null
+    if (!keepEffort) this.meta.effort = null
+    if (!keepMode) this.meta.permissionMode = 'default'
+    this.settingsChanged()
+    if (!this.q) return
+    // `undefined` and null return the session to Claude Code's default model and effort.
+    if (!keepModel) await this.q.setModel(undefined)
+    if (!keepEffort) await this.q.applyFlagSettings({ effortLevel: null })
+    if (!keepMode) await this.q.setPermissionMode('default')
+  }
+
+  /** Asks Claude Code which effort it applies to the model while the conversation has none of its own. */
+  private async readDefaultEffort(): Promise<void> {
+    if (!this.q || this.meta.effort !== null) return
+    // getSettings is in the SDK's runtime but not in its types.
+    const q = this.q as Query & { getSettings?(): Promise<{ applied?: { effort?: EffortLevel | null } }> }
+    try {
+      const settings = await q.getSettings?.()
+      if (this.meta.effort !== null) return
+      this.meta.defaultEffort = settings?.applied?.effort ?? null
+      this.emitMeta()
+    } catch {
+      // The effort menu shows no level.
+    }
   }
 
   private scheduleFlush(): void {

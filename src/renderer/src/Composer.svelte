@@ -1,5 +1,6 @@
 <!-- The message box: text, pasted or dropped images, slash command completion, and the conversation's model, effort and permission mode. -->
 <script lang="ts">
+  import { modelChoices, modelRow } from '@shared/models'
   import type { CommandOption, ConversationMeta, EffortLevel, ImageData, PermissionMode } from '@shared/types'
   import { api } from './state.svelte'
   import { errorMessage } from './util'
@@ -24,7 +25,12 @@
   let dismissedFor = $state<string | null>(null)
   let box: HTMLTextAreaElement
 
-  const model = $derived(meta.models.find((m) => m.value === (meta.model ?? 'default')))
+  const model = $derived(modelRow(meta.models, meta.model))
+  // Without an effort of its own the conversation runs at the model's default.
+  const effort = $derived.by(() => {
+    const level = meta.effort ?? meta.defaultEffort
+    return level && model?.efforts.includes(level) ? level : null
+  })
   const modes = $derived<PermissionMode[]>([
     'default',
     'acceptEdits',
@@ -143,13 +149,13 @@
     <select class="mode {meta.permissionMode}" value={meta.permissionMode} onchange={(e) => run(api.setPermissionMode(meta.id, e.currentTarget.value as PermissionMode))} title="Permission mode (⇧⇥)">
       {#each modes as m (m)}<option value={m}>{MODE_LABELS[m]}</option>{/each}
     </select>
-    <select value={meta.model ?? 'default'} onchange={(e) => run(api.setModel(meta.id, e.currentTarget.value === 'default' ? null : e.currentTarget.value))} title="Model">
-      {#each meta.models as m (m.value)}<option value={m.value} title={m.description}>{m.displayName}</option>{/each}
-      {#if meta.models.length === 0}<option value={meta.model ?? 'default'}>{meta.model ?? 'Default model'}</option>{/if}
+    <select value={model?.value ?? meta.model ?? ''} onchange={(e) => run(api.setModel(meta.id, e.currentTarget.value))} title="Model">
+      {#each modelChoices(meta.models) as m (m.value)}<option value={m.value} title={m.description}>{m.displayName}</option>{/each}
+      {#if meta.models.length === 0}<option value={meta.model ?? ''}>{meta.model ?? 'Model'}</option>{/if}
     </select>
     {#if model && model.efforts.length > 0}
-      <select value={meta.effort ?? ''} onchange={(e) => run(api.setEffort(meta.id, (e.currentTarget.value || null) as EffortLevel | null))} title="Effort">
-        <option value="">Default effort</option>
+      <select value={effort ?? ''} onchange={(e) => run(api.setEffort(meta.id, e.currentTarget.value as EffortLevel))} title="Effort">
+        {#if !effort}<option value="" disabled hidden>Effort</option>{/if}
         {#each model.efforts as level (level)}<option value={level}>{level} effort</option>{/each}
       </select>
     {/if}

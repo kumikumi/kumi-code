@@ -66,12 +66,19 @@ What the code does, precisely. `README.md` is the short version.
   `skills: 'all'`; `permissionMode` from the conversation's settings;
   `allowDangerouslySkipPermissions: true` (so bypass can be chosen mid-session);
   `includePartialMessages: true`; `thinking: { type: 'adaptive', display: 'summarized' }`;
-  `model`/`effort` when set; `canUseTool`; `env: agentEnvironment()`; `spawnClaudeCodeProcess`:
+  `effort` when set, and `model` when set and resuming (Claude Code lists the model it starts on
+  whether or not it is offered, so a new session starts on the default and switches once the
+  list shows its model); `canUseTool`; `env: agentEnvironment()`; `spawnClaudeCodeProcess`:
   Kumi Code starts the process itself (`child_process.spawn` with the SDK's command, arguments,
   folder, environment and abort signal) to know when it has exited, and keeps the last 50 chunks
   of its stderr for error messages.
-- After `initializationResult()` the meta carries the model list (value, name, efforts, auto mode
-  support) and the slash commands (Claude Code's own, skills, plugins, custom commands).
+- After `initializationResult()` the meta carries the model list (value, the model it resolves
+  to, name, efforts, auto mode support) and the slash commands (Claude Code's own, skills,
+  plugins, custom commands). A model, effort or `auto` mode the list does not offer for the
+  model falls back to Claude Code's default, as after each model change.
+- The menus offer no "Default": the model menu leaves out Claude Code's Default row and shows
+  the row it resolves to, and without an effort of its own the effort menu shows the effort
+  Claude Code applies (the SDK's untyped `getSettings().applied.effort`).
 - Status: `cold` (no process) → `starting` → `idle` ⇄ `running`; `error` when the process fails
   (the error and the tail of stderr are shown; the next message starts a new process). A `result`
   ends a turn unless `queued_turn_count > 0`; stream or assistant output while idle (a turn Claude
@@ -82,7 +89,9 @@ What the code does, precisely. `README.md` is the short version.
   exits, and the SDK force-kills it after about 2 s. `stop()` resolves when it has exited.
 - Settings (model, effort, permission mode) are stored per conversation and applied live:
   `setModel`, `applyFlagSettings({ effortLevel })`, `setPermissionMode`. Mode changes Claude Code
-  reports (`init`, `status`) are adopted.
+  reports (`init`, `status`) are adopted. What the user picks (in the menus, with ⇧⇥, or by
+  approving a plan) once Claude Code accepts it is remembered, and a new conversation starts
+  with the last picks.
 - Requests (`canUseTool`): `AskUserQuestion` → a question form, answered with
   `updatedInput.answers` (question → label(s) joined by `, `, or the typed text);
   `ExitPlanMode` → plan approval (approve with `acceptEdits`, `auto` when the model supports it,
@@ -414,7 +423,7 @@ What the code does, precisely. `README.md` is the short version.
 `<userData>/state.json` (`~/Library/Application Support/Kumi Code/`, or `KUMI_USER_DATA`), mode
 0600, written atomically 300 ms after a change and on quit: `{ version: 2, windows, conversations:
 { [id]: { cwd, scratch, createdAt, model, effort, permissionMode } }, recents, reviews: { [id]:
-Review } }`. Another version is an error. Transcripts live where Claude Code keeps them, under `~/.claude/projects/`.
+Review }, lastPicked?: { model?, effort?, permissionMode? } }`. Another version is an error. Transcripts live where Claude Code keeps them, under `~/.claude/projects/`.
 
 ## Not yet
 
