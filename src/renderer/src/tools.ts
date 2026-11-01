@@ -73,6 +73,19 @@ export function summarizeTool(name: string, input: Record<string, unknown>, cwd:
   return { label: mcp ? `${mcp[1]} › ${mcp[2]}` : name, detail: firstString(input) }
 }
 
+/** send_to_terminal's steps as a person reads them: one line each. */
+export function terminalSteps(input: Record<string, unknown>): string {
+  const steps = Array.isArray(input.input) ? (input.input as Record<string, unknown>[]) : []
+  return steps
+    .map((step) => {
+      if (typeof step?.text === 'string') return `type  ${JSON.stringify(step.text)}`
+      if (typeof step?.keys === 'string') return `press ${step.keys}`
+      if (typeof step?.wait_for_output_ms === 'number') return `wait  for output, up to ${step.wait_for_output_ms} ms`
+      return JSON.stringify(step)
+    })
+    .join('\n')
+}
+
 function lineCounts(before: string, after: string): { added: number; removed: number } {
   let added = 0
   let removed = 0

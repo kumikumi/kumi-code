@@ -20,6 +20,7 @@ What the code does, precisely. `README.md` is the short version.
   - `urls.ts` — local pages, typed URLs, origins, redaction.
   - `previews.ts` — `Previews`: dev servers from a project's `.claude/launch.json`.
   - `terminal-command.ts` — what `run_in_terminal` refuses to type, and the shell's parse check.
+  - `terminal-input.ts` — `send_to_terminal`'s steps, checked, and key names → terminal bytes.
 - `src/main/` — Electron main process: `workspace.ts` (windows, tabs, open conversations and
   their browsers and terminals), `drag.ts` (tabs dragged out of a strip), `index.ts` (IPC, menu,
   startup), `browser.ts` (`Browser`, `BrowserTab`: a conversation's offscreen tabs),
@@ -278,8 +279,8 @@ What the code does, precisely. `README.md` is the short version.
 - Each open conversation may have a Terminal panel: tabs that each run the user's login shell
   (`$SHELL -l`, in a pseudo-terminal from `node-pty`, with the user's environment less Kumi Code's
   own `ELECTRON_*` and `KUMI_*` variables, and `TERM=xterm-256color`). The user types in them in
-  the terminal pane; the agent runs commands in them and reads them. Shells end with their
-  conversation's tab, or on quit.
+  the terminal pane; the agent runs commands in them, types and presses keys in any of them, and
+  reads them. Shells end with their conversation's tab, or on quit.
 - Each tab keeps its screen in a headless terminal (`@xterm/headless`, 5000 lines of scrollback),
   so the tools read it whether or not the pane shows it. Whether a command runs is whether the
   pseudo-terminal's foreground process is the shell. Tab ids count from "0" per conversation; the
@@ -288,7 +289,13 @@ What the code does, precisely. `README.md` is the short version.
 - Tools: the `terminal` in-process MCP server copies the tool set of the Claude desktop app's
   Terminal panel, with its names (`mcp__terminal__…`), schemas (`_consent` included, and ignored)
   and descriptions: `read_terminal`, `list_terminal_tabs`, `open_terminal_tab`, `run_in_terminal`,
-  `stop_terminal_tab`.
+  `stop_terminal_tab`. One more tool is Kumi Code's own: `send_to_terminal`.
+  - The screen the tools return (`read_terminal`, `send_to_terminal`): a line naming the tab, a
+    bracketed note, and the tab's last lines. The note says when a full-screen program shows (the
+    alternate screen, with its size), where the cursor is among the lines (the lines run at least
+    to it), and that highlighted (reverse-video) text, as menus show the selected item, is between
+    `⟦` and `⟧` (spaces alone are not marked; a highlight running to the line's end loses its
+    trailing spaces).
   - `read_terminal` returns a tab's last lines (200 by default, at most 1000), after waiting for
     new output to arrive and settle when asked.
   - `run_in_terminal` opens a tab (in the conversation's folder, or a folder inside it), waits for
@@ -301,16 +308,35 @@ What the code does, precisely. `README.md` is the short version.
   - `open_terminal_tab` opens a tab and shows the pane at it.
   - `stop_terminal_tab` sends Ctrl-C (or closes the tab) only for tabs the agent opened and the
     user has not typed in.
+  - `send_to_terminal` {`tab_id`, `input`} types into any tab, one the user opened or typed in
+    included (a shell they logged in to over SSH, a REPL, a full-screen program). `input` is an
+    ordered list of steps, each exactly one of `text` (typed as given; control characters are
+    refused, to be pressed as keys), `keys` (key names separated by spaces: Enter, Escape, Tab,
+    Backspace, Delete, Space, arrows, Home, End, PageUp, PageDown, Insert, F1–F12 or one
+    character, with ctrl, alt and shift joined by +; cmd is refused) and `wait_for_output_ms`
+    (new output, then half a second of quiet, at most 60 s). Every step is checked before
+    anything is sent. Keys are xterm's bytes; arrows, Home and End follow the application cursor
+    keys mode the program set, read from the headless terminal once its output is parsed, and
+    the keys of one step go 25 ms apart. Nothing is sent while the user typed in the tab within
+    the last 2 s or another call types in it, and the steps stop when the user types. While it
+    types, the tab is marked as the agent typing, and the pane switches to it unless the user is
+    typing in the tab it shows. When the steps are done it waits for the program to redraw
+    (300 ms without output after the last input, at most 2 s) and returns the screen, as many
+    lines as the tab has rows.
 - Permission: `read_terminal`, `list_terminal_tabs` and `stop_terminal_tab` are in `allowedTools`;
-  `run_in_terminal` and `open_terminal_tab` go through the permission prompt, so the user approves
-  the exact line, or the folder.
+  `run_in_terminal`, `open_terminal_tab` and `send_to_terminal` go through the permission prompt,
+  as Bash does, so the user approves the exact line, the folder, or the steps (shown one per
+  line: type, press, wait).
 - The pane (the dock's third kind; *Terminal* in the header, 560 px by default, its width kept as
-  `terminalPanelWidth`): tabs (a running dot, close, new shell), and the active tab in xterm.js. A
+  `terminalPanelWidth`): tabs (a running dot, or a quicker accent dot while the agent types in it;
+  close, new shell), and the active tab in xterm.js, with a *Claude is typing* badge over it
+  (over, so the shell keeps its size) while the agent types in it. A
   tab starts from a snapshot of its screen (`@xterm/addon-serialize`) and continues with its
   output after it: output is numbered, sent only to windows that show the pane, and chunks the
   snapshot already holds are skipped. The shell takes the pane's size. A link
-  `[title](#terminal/<tab_id>)` in the agent's text shows the pane at that tab; the system prompt
-  section asks the agent to link tabs that way.
+  `[title](#terminal/<tab_id>)` in the agent's text shows the pane at that tab. The system prompt
+  section tells the agent that every tab is open to it through `send_to_terminal`, and asks it to
+  link tabs that way.
 
 ## Browser
 

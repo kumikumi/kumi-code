@@ -1,4 +1,4 @@
-<!-- A conversation's Terminal panel: its shell tabs, and the active one in a terminal the user types in. A tab starts from a snapshot of its screen and continues with the output after it; the shell takes the pane's size. -->
+<!-- A conversation's Terminal panel: its shell tabs, and the active one in a terminal the user types in. A tab starts from a snapshot of its screen and continues with the output after it; the shell takes the pane's size. A tab the agent types in says so. -->
 <script lang="ts">
   import { FitAddon } from '@xterm/addon-fit'
   import { Terminal } from '@xterm/xterm'
@@ -10,6 +10,7 @@
   let { conversationId, terminals, visible, onhide }: { conversationId: string; terminals: TerminalState; visible: boolean; onhide: () => void } = $props()
 
   const activeId = $derived(terminals.activeTabId)
+  const activeTab = $derived(terminals.tabs.find((t) => t.id === activeId))
   let host = $state<HTMLDivElement>()
   let error = $state<string | null>(null)
   let term: Terminal | null = null
@@ -111,8 +112,12 @@
   <div class="browser-tabs">
     {#each terminals.tabs as tab (tab.id)}
       <div class={['browser-tab', tab.id === activeId && 'active']}>
-        <button class="browser-tab-title" title="{tab.cwd}{tab.openedBy === 'agent' ? ' (opened by Claude)' : ''}" onclick={() => act({ kind: 'select', tabId: tab.id })}>
-          {#if tab.running}<span class="terminal-running"></span>{/if}{tab.title}{tab.exited ? ' (exited)' : ''}
+        <button
+          class="browser-tab-title"
+          title="{tab.cwd}{tab.openedBy === 'agent' ? ' (opened by Claude)' : ''}{tab.agentTyping ? ' — Claude is typing' : ''}"
+          onclick={() => act({ kind: 'select', tabId: tab.id })}
+        >
+          {#if tab.agentTyping}<span class="terminal-typing"></span>{:else if tab.running}<span class="terminal-running"></span>{/if}{tab.title}{tab.exited ? ' (exited)' : ''}
         </button>
         <button class="browser-tab-close" aria-label="Close tab" title="Close tab" onclick={() => act({ kind: 'close', tabId: tab.id })}>×</button>
       </div>
@@ -124,6 +129,8 @@
   {#if error}<div class="notice error browser-error">{error}</div>{/if}
   <div class="terminal-view" hidden={!activeId}>
     <div class="terminal-host" bind:this={host}></div>
+    <!-- Over the terminal, so it does not change the shell's size. -->
+    {#if activeTab?.agentTyping}<div class="terminal-typing-badge">Claude is typing</div>{/if}
   </div>
   {#if !activeId}
     <div class="browser-empty">

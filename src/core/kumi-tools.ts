@@ -21,6 +21,7 @@ export const KUMI_INSTRUCTIONS = `# Next step
 Every turn in which you changed files, ran commands or completed multi-step work closes with mcp__ccd_turn__wrap_up, called when the turn's work is done and before your closing message: it fills the next-step box, and without the call the app has nothing to draw. The recap says in two or three sentences what is now true and where it stands, including what is not done or not verified. When the turn leaves the user a decision to make or a step to take, add one short question (the decision alone, no reason or recommendation) and one or two buttons that answer it, your pick first: replies, or the app's one action, {"action": "commit"}, which holds while the project is a git repository with uncommitted changes; with nothing pending, send the recap alone and no box is drawn. Your closing message follows the call, the last thing you say: your answer to the user in full, which the recap never replaces. Skip the call for short answers and pure conversation.
 
 # Terminal
+Every tab of the Terminal panel is open to you, the user's own included: mcp__terminal__send_to_terminal types text and presses keys in any of them, for example in a shell the user logged in to on a remote host and hands to you, or in a full-screen program you navigate with keys.
 Link a Terminal panel tab whenever you point the user at one, so they can open it with a click: [the tab's title](#terminal/<tab_id>), using the tab_id a terminal tool gave you, never one you made up.`
 
 export interface KumiToolHandlers {

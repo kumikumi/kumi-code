@@ -31,7 +31,9 @@ A barebones Claude Code frontend. TypeScript, Electron, Svelte and Anthropic's C
   buttons that answer it.
 - **Terminal**: each conversation has a Terminal panel of shell tabs that the user types in, with
   the tools of the Claude desktop app's Terminal panel (`mcp__terminal__*`): the agent reads what
-  the user ran, and runs commands there that the user approves, line by line.
+  the user ran, and runs commands there that the user approves, line by line. With one more tool,
+  `send_to_terminal`, the agent types text and presses keys in any tab, the user's own included,
+  so it can work in a shell the user logged in to over SSH or navigate a full-screen program.
 - **New tab page**: past conversations (those started in Kumi Code, or every Claude Code session
   on this machine with the toggle) and a new conversation in a recent project, a picked folder
   or no project.
