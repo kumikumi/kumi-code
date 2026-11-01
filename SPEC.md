@@ -89,9 +89,25 @@ What the code does, precisely. `README.md` is the short version.
   exits, and the SDK force-kills it after about 2 s. `stop()` resolves when it has exited.
 - Settings (model, effort, permission mode) are stored per conversation and applied live:
   `setModel`, `applyFlagSettings({ effortLevel })`, `setPermissionMode`. Mode changes Claude Code
-  reports (`init`, `status`) are adopted. What the user picks (in the menus, with ⇧⇥, or by
-  approving a plan) once Claude Code accepts it is remembered, and a new conversation starts
-  with the last picks.
+  reports (`init`, `status`) are adopted. What the user picks (in the menus, with ⇧⇥, by
+  approving a plan, or by forking with another model) once Claude Code accepts it is
+  remembered, and a new conversation starts with the last picks.
+- The model is fixed once the conversation has a message (`meta.hasMessages`): a reply on
+  another model would run without the earlier replies' reasoning (the API drops, without saying
+  so, thinking blocks the new model cannot read; e.g. no model but Fable reads Opus 5.5's) and
+  without the prompt cache, which is per model. `setModel` is then an error, `/model` is refused
+  and left out of the commands, and a model the list no longer offers is kept (Claude Code runs
+  the model it is started on). The model menu shows the model and, under *Fork with another
+  model*, the others: picking one forks the whole conversation with that model.
+- Fork (`forkConversation`): `forkSession` copies the session, whole or up to a message
+  (`upToMessageId`, the last message of a turn), into a new session in the same folder, titled
+  `<title> (fork)` by the SDK; the copy gets the source's settings (or the model picked) and opens
+  in a tab after the active one. A whole copy is refused while a turn runs or compaction runs.
+  The store keeps `forkedFrom` (source id and title, the time of the fork, and the time of the
+  copy's last message, read from the source first: `forkSession` stamps that message with the
+  time of the fork). The transcript shows *Forked from <title>* (a link to the source) after the
+  copy. Entry points: *Fork from here* on a turn's footer, the header's fork button (whole), and
+  the model menu.
 - Requests (`canUseTool`): `AskUserQuestion` → a question form, answered with
   `updatedInput.answers` (question → label(s) joined by `, `, or the typed text);
   `ExitPlanMode` → plan approval (approve with `acceptEdits`, `auto` when the model supports it,
@@ -115,9 +131,24 @@ What the code does, precisely. `README.md` is the short version.
 
 ## Transcript
 
-- Items: `user` (text, images, `queued`, `relay` for a relayed review message), `text`, `thinking`, `tool` (name, input, `partialInput`
+- Items: `user` (text, images, `queued`, `relay` for a relayed review message, `at` = when it was sent), `text`, `thinking`, `tool` (name, input, `partialInput`
   while it streams, `result`, `children` = what a subagent started by it did), `compact`,
-  `command_output`, `notice` (info or error).
+  `command_output`, `notice` (info or error), `turn` (the end of a turn that got a reply:
+  `startedAt`, `finishedAt`, `messageId`), `fork` (the end of a fork's copy).
+- Turns: a turn starts with a user message sent while none runs (one sent during a turn joins
+  it), when Claude Code starts one by itself, or with the next queued turn; it ends at the
+  `result` (or when the process stops or fails). Its main-thread assistant messages and tool
+  results move its finish time and `messageId` (the message's uuid). A turn with none gets no
+  `turn` item. Stored sessions use the messages' `timestamp`s (in `getSessionMessages`' results,
+  not its types): a prompt or a background task's notification ends the turn before and starts
+  one, an interruption does not; the history's last turn ends with it. Live and stored times
+  differ by milliseconds. `meta.turnStartedAt` is the running turn's start.
+- Times in the UI are relative to the local day (`app.today`, updated at midnight): the clock
+  time today, `Yesterday 14:05`, the weekday this week, then the date (with the year when it is
+  not this one); hovering shows the full date and time. A user message shows when it was sent
+  under its bubble; a turn ends with *Worked for 2m 5s · 14:05* and, on hover, *Fork from here*
+  before it; both times sit at the transcript's right edge;
+  *Working…* counts the running turn's seconds.
 - Stream events create `text`/`thinking`/`tool` items and grow them; the complete assistant
   message (one per content block) settles them by API message id and kind, in order. Tool results
   attach by `tool_use_id`. Output with a `parent_tool_use_id` nests under that tool.
@@ -422,13 +453,13 @@ What the code does, precisely. `README.md` is the short version.
 
 `<userData>/state.json` (`~/Library/Application Support/Kumi Code/`, or `KUMI_USER_DATA`), mode
 0600, written atomically 300 ms after a change and on quit: `{ version: 2, windows, conversations:
-{ [id]: { cwd, scratch, createdAt, model, effort, permissionMode } }, recents, reviews: { [id]:
+{ [id]: { cwd, scratch, createdAt, model, effort, permissionMode, forkedFrom? } }, recents, reviews: { [id]:
 Review }, lastPicked?: { model?, effort?, permissionMode? } }`. Another version is an error. Transcripts live where Claude Code keeps them, under `~/.claude/projects/`.
 
 ## Not yet
 
 Packaging (and with it a login-shell `PATH` for apps started from Finder), @-file mentions,
-rewind and fork, diff and git panels, settings and MCP screens, worktrees,
+rewind, diff and git panels, settings and MCP screens, worktrees,
 notifications, light theme, non-Anthropic models. For code review: relaying without a click per
 step, starting a reviewer from the implementer, and review rounds after the fixes. For the
 browser: tabs restored after a restart, iframes in `read_page`, file uploads and downloads. For

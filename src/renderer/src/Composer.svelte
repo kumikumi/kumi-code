@@ -1,4 +1,4 @@
-<!-- The message box: text, pasted or dropped images, slash command completion, and the conversation's model, effort and permission mode. -->
+<!-- The message box: text, pasted or dropped images, slash command completion, and the conversation's model, effort and permission mode. Once the conversation has messages, picking another model forks it. -->
 <script lang="ts">
   import { modelChoices, modelRow } from '@shared/models'
   import type { CommandOption, ConversationMeta, EffortLevel, ImageData, PermissionMode } from '@shared/types'
@@ -26,6 +26,8 @@
   let box: HTMLTextAreaElement
 
   const model = $derived(modelRow(meta.models, meta.model))
+  const currentModel = $derived(model?.value ?? meta.model ?? '')
+  const otherModels = $derived(modelChoices(meta.models).filter((m) => m !== model))
   // Without an effort of its own the conversation runs at the model's default.
   const effort = $derived.by(() => {
     const level = meta.effort ?? meta.defaultEffort
@@ -69,6 +71,13 @@
     run(api.send(meta.id, text.trim(), images))
     text = ''
     images = []
+  }
+
+  /** Continues the conversation on the model picked, as a fork in a new tab; this one keeps its model. */
+  function forkWith(select: HTMLSelectElement): void {
+    const picked = select.value
+    select.value = currentModel
+    run(api.forkConversation(meta.id, null, picked))
   }
 
   function complete(command: CommandOption): void {
@@ -149,10 +158,27 @@
     <select class="mode {meta.permissionMode}" value={meta.permissionMode} onchange={(e) => run(api.setPermissionMode(meta.id, e.currentTarget.value as PermissionMode))} title="Permission mode (⇧⇥)">
       {#each modes as m (m)}<option value={m}>{MODE_LABELS[m]}</option>{/each}
     </select>
-    <select value={model?.value ?? meta.model ?? ''} onchange={(e) => run(api.setModel(meta.id, e.currentTarget.value))} title="Model">
-      {#each modelChoices(meta.models) as m (m.value)}<option value={m.value} title={m.description}>{m.displayName}</option>{/each}
-      {#if meta.models.length === 0}<option value={meta.model ?? ''}>{meta.model ?? 'Model'}</option>{/if}
-    </select>
+    {#if meta.hasMessages}
+      <!-- Another model would not see the earlier replies' reasoning, so it gets a copy of the conversation. -->
+      <select
+        value={currentModel}
+        disabled={running || meta.compacting}
+        onchange={(e) => forkWith(e.currentTarget)}
+        title={running ? 'Model · fork with another one once the turn ends' : 'Model · picking another forks the conversation'}
+      >
+        <option value={currentModel}>{model?.displayName ?? meta.model ?? 'Model'}</option>
+        {#if otherModels.length > 0}
+          <optgroup label="Fork with another model">
+            {#each otherModels as m (m.value)}<option value={m.value} title={m.description}>{m.displayName}</option>{/each}
+          </optgroup>
+        {/if}
+      </select>
+    {:else}
+      <select value={currentModel} onchange={(e) => run(api.setModel(meta.id, e.currentTarget.value))} title="Model">
+        {#each modelChoices(meta.models) as m (m.value)}<option value={m.value} title={m.description}>{m.displayName}</option>{/each}
+        {#if meta.models.length === 0}<option value={meta.model ?? ''}>{meta.model ?? 'Model'}</option>{/if}
+      </select>
+    {/if}
     {#if model && model.efforts.length > 0}
       <select value={effort ?? ''} onchange={(e) => run(api.setEffort(meta.id, e.currentTarget.value as EffortLevel))} title="Effort">
         {#if !effort}<option value="" disabled hidden>Effort</option>{/if}

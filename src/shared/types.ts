@@ -56,8 +56,8 @@ export interface ToolResult {
 }
 
 export type TranscriptItem =
-  /** relay: the message is a review finding or answer Kumi Code relayed. */
-  | { kind: 'user'; id: string; text: string; images: ImageData[]; queued: boolean; relay: RelayMessage | null }
+  /** relay: the message is a review finding or answer Kumi Code relayed. at: when it was sent; null when unknown. */
+  | { kind: 'user'; id: string; text: string; images: ImageData[]; queued: boolean; relay: RelayMessage | null; at: number | null }
   | { kind: 'text'; id: string; text: string; streaming: boolean }
   | { kind: 'thinking'; id: string; text: string; streaming: boolean }
   | {
@@ -75,6 +75,13 @@ export type TranscriptItem =
   | { kind: 'compact'; id: string; trigger: 'manual' | 'auto' | null; preTokens: number | null }
   | { kind: 'command_output'; id: string; text: string }
   | { kind: 'notice'; id: string; level: 'info' | 'error'; text: string }
+  /**
+   * The end of a turn that got a reply: from the message (or event) that started it to its
+   * last main-thread message. messageId: that message's uuid, where a fork can end.
+   */
+  | { kind: 'turn'; id: string; startedAt: number; finishedAt: number; messageId: string }
+  /** Where a fork's copy of another conversation ends. */
+  | { kind: 'fork'; id: string; fromId: string; fromTitle: string }
 
 /** An entry of Claude Code's task list (TaskCreate, TaskUpdate, ...). */
 export interface TaskInfo {
@@ -298,6 +305,10 @@ export interface ConversationMeta {
   draft: string
   /** The agent waits for the user's answer to its next-step question (a blocked wrap_up). */
   waiting: boolean
+  /** The conversation has messages, so its model changes only by forking it. */
+  hasMessages: boolean
+  /** When the turn in progress started; null between turns. */
+  turnStartedAt: number | null
 }
 
 export interface ConversationSnapshot {
@@ -376,6 +387,7 @@ export const IPC = {
   listRecentProjects: 'projects:recent',
   renameConversation: 'conversation:rename',
   deleteConversation: 'conversation:delete',
+  forkConversation: 'conversation:fork',
   getConversation: 'conversation:get',
   send: 'conversation:send',
   interrupt: 'conversation:interrupt',
@@ -441,6 +453,13 @@ export interface KumiApi {
   listRecentProjects(): Promise<RecentProject[]>
   renameConversation(conversationId: string, title: string): Promise<void>
   deleteConversation(conversationId: string): Promise<void>
+  /**
+   * Copies the conversation into a new one, shown in a tab after this one: up to the end of
+   * the turn whose last message is `upTo`, or whole (not while a turn runs). `model`: the
+   * copy's model, null for the conversation's own; the only way to change the model of a
+   * conversation that has messages.
+   */
+  forkConversation(conversationId: string, upTo: string | null, model: string | null): Promise<void>
   getConversation(conversationId: string): Promise<ConversationSnapshot>
   send(conversationId: string, text: string, images: ImageData[]): Promise<void>
   interrupt(conversationId: string): Promise<void>

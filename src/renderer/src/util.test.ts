@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { groupByDate } from './util'
+import { duration, groupByDate, messageTime } from './util'
 
 describe('groupByDate', () => {
   it('groups newest-first items by calendar day, week, month', () => {
@@ -25,5 +25,35 @@ describe('groupByDate', () => {
     const now = new Date(2026, 0, 15).getTime()
     const [group] = groupByDate([new Date(2025, 10, 3).getTime()], (t) => t, now)
     expect(group?.label).toContain('2025')
+  })
+})
+
+describe('messageTime', () => {
+  const now = new Date(2026, 10, 1, 15, 30).getTime()
+  const clock = (ts: number): string => new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+
+  it('gives the clock time today and says which day before', () => {
+    const today = new Date(2026, 10, 1, 9, 5).getTime()
+    const yesterday = new Date(2026, 9, 31, 23, 50).getTime()
+    const thisWeek = new Date(2026, 9, 27, 8, 0).getTime()
+    expect(messageTime(today, now)).toBe(clock(today))
+    expect(messageTime(yesterday, now)).toBe(`Yesterday ${clock(yesterday)}`)
+    expect(messageTime(thisWeek, now)).toBe(`${new Date(thisWeek).toLocaleDateString(undefined, { weekday: 'short' })} ${clock(thisWeek)}`)
+  })
+
+  it('gives the date before this week, with the year when it is not this one', () => {
+    const earlier = new Date(2026, 9, 2, 10, 0).getTime()
+    const lastYear = new Date(2025, 11, 30, 10, 0).getTime()
+    expect(messageTime(earlier, now)).toBe(`${new Date(earlier).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}, ${clock(earlier)}`)
+    expect(messageTime(lastYear, now)).toContain('2025')
+  })
+})
+
+describe('duration', () => {
+  it('counts whole seconds, then minutes, then hours', () => {
+    expect(duration(400)).toBe('<1s')
+    expect(duration(42_900)).toBe('42s')
+    expect(duration(185_000)).toBe('3m 5s')
+    expect(duration(4_330_000)).toBe('1h 12m')
   })
 })

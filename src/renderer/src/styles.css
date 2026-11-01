@@ -170,6 +170,19 @@ code, pre { font-family: var(--mono); font-size: 12.5px; }
   animation: pulse 1.2s ease-in-out infinite;
 }
 @keyframes pulse { 50% { opacity: 0.3; } }
+.status-line .elapsed { margin-left: 8px; color: var(--faint); font-variant-numeric: tabular-nums; }
+/* When a message was sent: under its bubble, at its right edge. */
+.message-time { display: block; margin: -8px 4px 12px; text-align: right; font-size: 11px; color: var(--faint); font-variant-numeric: tabular-nums; }
+/* The end of a turn: how long it took and when it finished, at the right edge like the messages' times, and a fork from there on hover. */
+.item.turn-end { display: flex; align-items: center; justify-content: flex-end; gap: 10px; min-height: 22px; margin: 6px 4px 14px; font-size: 11px; color: var(--faint); font-variant-numeric: tabular-nums; }
+.turn-dot { margin: 0 6px; }
+.turn-fork { display: inline-flex; align-items: center; gap: 5px; padding: 1px 7px; font-size: 11.5px; color: var(--muted); visibility: hidden; }
+.turn-fork .icon, .fork-divider .icon { width: 13px; height: 13px; }
+.turn-end:hover .turn-fork, .turn-fork:focus-visible { visibility: visible; }
+.turn-error { color: var(--red); }
+.fork-divider span { display: inline-flex; align-items: center; gap: 5px; }
+.fork-source { padding: 0 2px; font-size: inherit; background: transparent; color: var(--muted); text-decoration: underline dotted; text-underline-offset: 3px; }
+.fork-source:hover { background: transparent; color: var(--text-strong); }
 
 .thinking-toggle { background: transparent; padding: 0; color: var(--muted); font-size: 12.5px; font-style: italic; }
 .thinking-toggle:hover { background: transparent; color: var(--text); }
@@ -370,6 +383,8 @@ button.stop { background: var(--bg-active); }
 .kbd { opacity: 0.7; font-size: 11px; margin-left: 4px; }
 button.pane-on { background: var(--bg-active); color: var(--text-strong); }
 .pane-toggles { flex: none; align-self: center; display: flex; align-items: center; gap: 2px; margin: -3px 0; }
+/* An action, set apart from the pane toggles after it. */
+.header-fork { margin-right: 8px; }
 .icon-button { position: relative; display: grid; place-items: center; width: 28px; height: 28px; padding: 0; }
 .icon { flex: none; width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
 .icon path { vector-effect: non-scaling-stroke; }

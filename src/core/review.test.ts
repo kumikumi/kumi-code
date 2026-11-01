@@ -194,13 +194,13 @@ describe('relayed messages', () => {
     expect(parseRelay('Please look at <code-review>')).toBeNull()
 
     const t = new TranscriptBuilder()
-    t.addUser('u1', text, [], false)
+    t.addUser('u1', text, [], false, null)
     t.applyHistory([{ type: 'user', uuid: 'u2', parent_tool_use_id: null, message: { role: 'user', content: text } }])
     expect(t.items).toMatchObject([
       { kind: 'user', relay: { to: 'implementer', rank: 2 } },
       { kind: 'user', relay: { to: 'implementer', rank: 2 } },
     ])
-    t.addUser('u3', 'plain', [], false)
+    t.addUser('u3', 'plain', [], false, null)
     expect(t.items[2]).toMatchObject({ relay: null })
   })
 })

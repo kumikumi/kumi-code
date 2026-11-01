@@ -44,13 +44,28 @@ export interface StoredMessage {
   uuid: string
   message: unknown
   parent_tool_use_id: string | null
+  /** ISO 8601. In getSessionMessages' results, though not in its types. */
+  timestamp?: string
+}
+
+/** The conversation a fork copied, and when (after forkSession returned). */
+export interface ForkOrigin {
+  id: string
+  title: string
+  at: number
+  /** When the copy's last message was written, which forkSession overwrites with the time of the fork. */
+  lastAt: number | null
 }
 
 export class TranscriptBuilder {
   readonly items: TranscriptItem[] = []
   /** Claude Code's task list, as the task tools built it. */
   tasks: TaskInfo[] = []
+  /** A user message has been added. */
+  hasMessages = false
   private tasksChanged = false
+  /** The turn in progress: when it started, and its last main-thread message so far. */
+  private turn: { startedAt: number; lastAt: number | null; messageId: string | null } | null = null
   private readonly tools = new Map<string, ToolItem>()
   private readonly rootOf = new Map<TranscriptItem, TranscriptItem>()
   private readonly changed = new Set<TranscriptItem>()
@@ -76,8 +91,34 @@ export class TranscriptBuilder {
     return list
   }
 
-  addUser(id: string, text: string, images: ImageData[], queued: boolean): void {
-    this.add({ kind: 'user', id, text, images, queued, relay: parseRelay(text) }, null)
+  addUser(id: string, text: string, images: ImageData[], queued: boolean, at: number | null): void {
+    this.hasMessages = true
+    this.add({ kind: 'user', id, text, images, queued, relay: parseRelay(text), at }, null)
+  }
+
+  /** When the turn in progress started; null between turns. */
+  get turnStartedAt(): number | null {
+    return this.turn?.startedAt ?? null
+  }
+
+  /** A turn starts, unless one is in progress (a message sent while it runs joins it). */
+  startTurn(at: number): void {
+    this.turn ??= { startedAt: at, lastAt: null, messageId: null }
+  }
+
+  /** A main-thread assistant message or tool result of the turn; `at` null when its time is unknown. */
+  touchTurn(at: number | null, messageId: string): void {
+    if (!this.turn) return
+    if (at !== null) this.turn.lastAt = Math.max(at, this.turn.startedAt)
+    this.turn.messageId = messageId
+  }
+
+  /** Ends the turn in progress. One that got a reply gets an item saying when it finished. */
+  endTurn(): void {
+    const turn = this.turn
+    this.turn = null
+    if (turn?.lastAt == null || turn.messageId === null) return
+    this.add({ kind: 'turn', id: this.nextId('turn'), startedAt: turn.startedAt, finishedAt: turn.lastAt, messageId: turn.messageId }, null)
   }
 
   /** The input of a tool call, at any depth. */
@@ -237,23 +278,42 @@ export class TranscriptBuilder {
     return finished
   }
 
-  /** A session's stored messages, as getSessionMessages returns them. */
-  applyHistory(messages: StoredMessage[]): void {
-    for (const m of messages) {
+  /**
+   * A session's stored messages, as getSessionMessages returns them; its last turn ends with
+   * them. A fork's copy of another conversation is the messages up to `fork.at`, and its last
+   * one carries the time of the fork (forkSession stamps it so) in place of `fork.lastAt`.
+   */
+  applyHistory(messages: StoredMessage[], fork: ForkOrigin | null = null): void {
+    const copied = fork ? messages.findLastIndex((m) => (timeOf(m) ?? 0) <= fork.at) : -1
+    if (fork && copied === -1) this.addFork(fork)
+    for (const [i, m] of messages.entries()) {
+      const at = fork && i === copied ? fork.lastAt : timeOf(m)
       if (m.type === 'assistant') {
         this.applyAssistant(m.message, m.parent_tool_use_id)
+        if (m.parent_tool_use_id === null) this.touchTurn(at, m.uuid)
       } else if (m.type === 'user') {
         const message = m.message as ApiMessage
         if (Array.isArray(message.content) && message.content.some((b) => b.type === 'tool_result')) {
           this.applyToolResults(message)
-          continue
+          if (m.parent_tool_use_id === null) this.touchTurn(at, m.uuid)
+        } else {
+          this.applyStoredUserText(m.uuid, message, at)
         }
-        this.applyStoredUserText(m.uuid, message)
+      }
+      if (fork && i === copied) {
+        this.endTurn()
+        this.addFork(fork)
       }
     }
+    this.endTurn()
   }
 
-  private applyStoredUserText(uuid: string, message: ApiMessage): void {
+  private addFork(fork: ForkOrigin): void {
+    this.add({ kind: 'fork', id: this.nextId('fork'), fromId: fork.id, fromTitle: fork.title }, null)
+  }
+
+  /** A stored user message other than tool results. A prompt, and a background task's notification, start a turn. */
+  private applyStoredUserText(uuid: string, message: ApiMessage, at: number | null): void {
     const blocks: Block[] = typeof message.content === 'string' ? [{ type: 'text', text: message.content }] : (message.content ?? [])
     const text = blocks
       .filter((b) => b.type === 'text')
@@ -263,13 +323,20 @@ export class TranscriptBuilder {
     const stored = classifyStoredUserText(text)
     switch (stored.kind) {
       case 'user':
-        this.addUser(uuid, stored.text, images, false)
+        this.endTurn()
+        this.addUser(uuid, stored.text, images, false, at)
+        if (at !== null) this.startTurn(at)
         return
       case 'command_output':
         this.addCommandOutput(stored.text)
         return
       case 'notice':
+        this.endTurn()
         this.addNotice('info', stored.text)
+        if (at !== null) this.startTurn(at)
+        return
+      case 'interrupted':
+        this.addNotice('info', 'Interrupted')
         return
       case 'compact':
         this.add({ kind: 'compact', id: uuid, trigger: null, preTokens: null }, null)
@@ -339,10 +406,12 @@ export class TranscriptBuilder {
   }
 }
 
+/** notice: a background task's notification, which Claude Code answers in a turn of its own. */
 export type StoredUserText =
   | { kind: 'user'; text: string }
   | { kind: 'command_output'; text: string }
   | { kind: 'notice'; text: string }
+  | { kind: 'interrupted' }
   | { kind: 'compact' }
   | { kind: 'hidden' }
 
@@ -366,7 +435,7 @@ export function classifyStoredUserText(raw: string): StoredUserText {
     const summary = /<summary>([\s\S]*?)<\/summary>/.exec(text)?.[1]?.trim()
     return { kind: 'notice', text: summary ?? 'Background task update' }
   }
-  if (text.startsWith('[Request interrupted by user')) return { kind: 'notice', text: 'Interrupted' }
+  if (text.startsWith('[Request interrupted by user')) return { kind: 'interrupted' }
   if (text.startsWith('This session is being continued from a previous conversation')) return { kind: 'compact' }
   return { kind: 'user', text: raw }
 }
@@ -383,6 +452,11 @@ function toolResult(block: Block): ToolResult {
     isError: block.is_error === true,
     images: parts.filter((p) => p.type === 'image').length,
   }
+}
+
+function timeOf(message: StoredMessage): number | null {
+  const time = message.timestamp ? Date.parse(message.timestamp) : NaN
+  return Number.isNaN(time) ? null : time
 }
 
 function imageOf(block: Block): ImageData[] {

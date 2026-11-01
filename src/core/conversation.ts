@@ -31,7 +31,7 @@ import { loginCommand } from './auth'
 import { agentEnvironment } from './environment'
 import { InputQueue } from './input-queue'
 import { TranscriptBuilder } from './transcript'
-import type { StoredMessage } from './transcript'
+import type { ForkOrigin, StoredMessage } from './transcript'
 
 export interface ConversationSettings {
   model: string | null
@@ -76,6 +76,12 @@ interface Pending {
 /** How often streamed text is flushed to the UI. */
 const FLUSH_MS = 40
 const UNTITLED = 'New conversation'
+/**
+ * Claude Code's command that switches the model. A conversation with messages keeps its
+ * model: a reply on another model loses the earlier replies' reasoning (the API drops
+ * thinking blocks the new model cannot read, without saying so) and the prompt cache.
+ */
+const MODEL_COMMAND = 'model'
 
 export class Conversation {
   private readonly transcript = new TranscriptBuilder()
@@ -104,6 +110,8 @@ export class Conversation {
     readonly cwd: string,
     project: string | null,
     settings: ConversationSettings,
+    /** The conversation this one is a fork of; null when it is not one. */
+    private readonly fork: ForkOrigin | null,
     private readonly events: ConversationEvents,
     private readonly access: ToolAccess,
   ) {
@@ -126,11 +134,13 @@ export class Conversation {
       tasks: [],
       draft: '',
       waiting: false,
+      hasMessages: false,
+      turnStartedAt: null,
     }
   }
 
   snapshotMeta(): ConversationMeta {
-    return { ...this.meta, requests: [...this.meta.requests] }
+    return { ...this.meta, requests: [...this.meta.requests], hasMessages: this.transcript.hasMessages, turnStartedAt: this.transcript.turnStartedAt }
   }
 
   snapshotItems(): TranscriptItem[] {
@@ -149,7 +159,7 @@ export class Conversation {
       if (!info) return
       const messages = await getSessionMessages(this.id, { dir: this.cwd })
       this.persisted = true
-      this.transcript.applyHistory(messages as StoredMessage[])
+      this.transcript.applyHistory(messages as StoredMessage[], this.fork)
       this.transcript.takeTasksChanged()
       this.meta.tasks = this.transcript.tasks
       this.flush()
@@ -171,6 +181,7 @@ export class Conversation {
   /** Sends what the user wrote in the composer. */
   async send(text: string, images: ImageData[]): Promise<void> {
     await this.load()
+    if (new RegExp(`^/${MODEL_COMMAND}(\\s|$)`).test(text.trim())) throw new Error('Change the model in the model menu (a conversation with messages continues on another model as a fork)')
     if (this.meta.title === UNTITLED && text.trim()) this.meta.title = firstLine(text)
     this.meta.draft = ''
     await this.deliver(text, images)
@@ -196,7 +207,10 @@ export class Conversation {
   private async deliver(text: string, images: ImageData[]): Promise<void> {
     this.meta.waiting = false
     const uuid = randomUUID()
-    this.transcript.addUser(uuid, text, images, this.meta.status === 'running')
+    const at = Date.now()
+    const running = this.meta.status === 'running'
+    this.transcript.addUser(uuid, text, images, running, at)
+    if (!running) this.transcript.startTurn(at)
     this.lastActivity = Date.now()
     this.flush()
     this.emitMeta()
@@ -236,6 +250,7 @@ export class Conversation {
   }
 
   async setModel(model: string): Promise<void> {
+    if (this.transcript.hasMessages) throw new Error('A conversation with messages keeps its model: fork it to continue on another one')
     this.meta.model = model
     this.settingsChanged()
     if (this.q) await this.q.setModel(model)
@@ -284,6 +299,7 @@ export class Conversation {
     if (this.meta.status !== 'error') this.meta.status = 'cold'
     this.meta.compacting = false
     this.transcript.endStreams()
+    this.transcript.endTurn()
     this.flush()
     this.emitMeta()
     return this.exited
@@ -344,7 +360,7 @@ export class Conversation {
           supportsAutoMode: m.supportsAutoMode === true,
         }),
       )
-      this.meta.commands = init.commands.map((c) => ({ name: c.name, description: c.description, argumentHint: c.argumentHint }))
+      this.meta.commands = init.commands.filter((c) => c.name !== MODEL_COMMAND).map((c) => ({ name: c.name, description: c.description, argumentHint: c.argumentHint }))
       await this.dropUnavailable()
       if (this.meta.model && !options.model) await q.setModel(this.meta.model)
       await this.readDefaultEffort()
@@ -369,7 +385,10 @@ export class Conversation {
   private handle(msg: SDKMessage): void {
     this.lastActivity = Date.now()
     // Claude Code also starts turns by itself, e.g. when a background task finishes.
-    if (this.meta.status === 'idle' && (msg.type === 'stream_event' || msg.type === 'assistant')) this.setStatus('running')
+    if (this.meta.status === 'idle' && (msg.type === 'stream_event' || msg.type === 'assistant')) {
+      this.transcript.startTurn(Date.now())
+      this.setStatus('running')
+    }
     switch (msg.type) {
       case 'stream_event':
         this.transcript.applyStreamEvent(msg.event, msg.parent_tool_use_id)
@@ -378,6 +397,7 @@ export class Conversation {
       case 'assistant':
         if (msg.user_message_uuids) this.transcript.markDelivered(msg.user_message_uuids)
         else if (msg.user_message_uuid) this.transcript.markDelivered([msg.user_message_uuid])
+        if (msg.parent_tool_use_id === null) this.transcript.touchTurn(Date.now(), msg.uuid)
         if (msg.error) {
           // Claude Code reports a failed request as an assistant message whose text is the error.
           const text = textOf(msg.message) || `Model request failed: ${msg.error}`
@@ -390,8 +410,10 @@ export class Conversation {
         if (msg.parent_tool_use_id === null) this.updateContext(msg.message)
         this.scheduleFlush()
         return
-      case 'user':
-        for (const tool of this.transcript.applyToolResults(msg.message, msg.tool_use_result)) {
+      case 'user': {
+        const finished = this.transcript.applyToolResults(msg.message, msg.tool_use_result)
+        if (finished.length > 0 && msg.parent_tool_use_id === null && msg.uuid) this.transcript.touchTurn(Date.now(), msg.uuid)
+        for (const tool of finished) {
           this.events.onToolDone({ id: tool.id, name: tool.name, input: tool.input, isError: tool.result?.isError === true })
         }
         if (this.transcript.takeTasksChanged()) {
@@ -400,6 +422,7 @@ export class Conversation {
         }
         this.scheduleFlush()
         return
+      }
       case 'result': {
         this.persisted = true
         this.transcript.endStreams()
@@ -416,6 +439,8 @@ export class Conversation {
           this.transcript.addNotice('error', msg.result)
         }
         this.lastError = null
+        this.transcript.endTurn()
+        if (more) this.transcript.startTurn(Date.now())
         this.updateContextWindow(msg.modelUsage)
         this.flush()
         this.setStatus(more ? 'running' : 'idle')
@@ -556,6 +581,7 @@ export class Conversation {
     this.meta.compacting = false
     this.transcript.endStreams()
     this.transcript.addNotice('error', this.meta.error)
+    this.transcript.endTurn()
     this.flush()
     this.setStatus('error')
   }
@@ -570,11 +596,15 @@ export class Conversation {
     this.emitMeta()
   }
 
-  /** Falls back to Claude Code's default for a model, effort or mode the model list does not offer. */
+  /**
+   * Falls back to Claude Code's default for a model, effort or mode the model list does not
+   * offer. A conversation with messages keeps its model: Claude Code runs a model it is
+   * started on whether or not the list offers it.
+   */
   private async dropUnavailable(): Promise<void> {
     const { models, model, effort, permissionMode } = this.meta
     if (models.length === 0) return
-    const keepModel = model === null || modelRow(models, model) !== undefined
+    const keepModel = model === null || this.transcript.hasMessages || modelRow(models, model) !== undefined
     const row = modelRow(models, keepModel ? model : null)
     const keepEffort = effort === null || row?.efforts.includes(effort) === true
     const keepMode = permissionMode !== 'auto' || row?.supportsAutoMode === true

@@ -42,13 +42,42 @@ export function shortTime(ts: number, now = Date.now()): string {
   return date.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: sameYear ? undefined : 'numeric' })
 }
 
-function startOfDay(ts: number): number {
+/**
+ * When a message was sent or a reply finished, for the transcript: the clock time today,
+ * with "Yesterday" or the weekday this week, the date before (and the year when it is not this one).
+ */
+export function messageTime(ts: number, now = Date.now()): string {
+  const today = startOfDay(now)
+  const date = new Date(ts)
+  if (ts >= today) return clockTime(ts)
+  if (ts >= addDays(today, -1)) return `Yesterday ${clockTime(ts)}`
+  if (ts >= addDays(today, -6)) return `${date.toLocaleDateString(undefined, { weekday: 'short' })} ${clockTime(ts)}`
+  const sameYear = date.getFullYear() === new Date(now).getFullYear()
+  return `${date.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: sameYear ? undefined : 'numeric' })}, ${clockTime(ts)}`
+}
+
+/** A time in full, to the second, for a tooltip. */
+export function fullTime(ts: number): string {
+  return new Date(ts).toLocaleString(undefined, { dateStyle: 'full', timeStyle: 'medium' })
+}
+
+/** How long something took, in whole seconds: "<1s", "42s", "3m 5s", "1h 12m". */
+export function duration(ms: number): string {
+  const s = Math.floor(ms / 1000)
+  if (s < 1) return '<1s'
+  if (s < 60) return `${s}s`
+  if (s < 3600) return `${Math.floor(s / 60)}m ${s % 60}s`
+  return `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m`
+}
+
+/** The start of the local calendar day `ts` is in. */
+export function startOfDay(ts: number): number {
   const d = new Date(ts)
   return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
 }
 
 /** Calendar days, so a daylight saving change does not shift the boundary. */
-function addDays(dayStart: number, days: number): number {
+export function addDays(dayStart: number, days: number): number {
   const d = new Date(dayStart)
   d.setDate(d.getDate() + days)
   return d.getTime()

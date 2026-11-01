@@ -15,7 +15,7 @@
   import ReviewPanel from './ReviewPanel.svelte'
   import Todos from './Todos.svelte'
   import { api, app, conversation } from './state.svelte'
-  import { errorMessage, tildify } from './util'
+  import { duration, errorMessage, tildify } from './util'
 
   let { id, visible }: { id: string; visible: boolean } = $props()
 
@@ -30,7 +30,10 @@
   let scroller = $state<HTMLDivElement>()
   let stick = true
   let renaming = $state<string | null>(null)
-  let renameError = $state<string | null>(null)
+  /** A rename or fork that failed. */
+  let headerError = $state<string | null>(null)
+  /** Ticks while a turn runs, for its elapsed time. */
+  let now = $state(Date.now())
   let tasksOpen = $state(true)
   /** What the pane beside the transcript shows; null when it is closed. */
   let pane = $state<'review' | 'browser' | 'terminal' | null>(null)
@@ -58,6 +61,16 @@
   })
   const browser = $derived(c.browser)
   const browserOpen = $derived((browser?.tabs.length ?? 0) > 0)
+  const turnStartedAt = $derived(meta?.status === 'running' ? meta.turnStartedAt : null)
+  // A copy of the whole conversation would end inside a running turn; "Fork from here" works on finished ones.
+  const forkBlocked = $derived(meta?.status === 'running' || meta?.compacting === true)
+
+  $effect(() => {
+    if (turnStartedAt === null || !visible) return
+    now = Date.now()
+    const timer = setInterval(() => (now = Date.now()), 1000)
+    return () => clearInterval(timer)
+  })
 
   // The pane opens by itself for a new review, and for the browser's first tab, when it is closed.
   $effect.pre(() => {
@@ -104,7 +117,12 @@
   function saveTitle(): void {
     const title = renaming?.trim()
     renaming = null
-    if (meta && title && title !== meta.title) api.renameConversation(meta.id, title).catch((err: unknown) => (renameError = errorMessage(err)))
+    if (meta && title && title !== meta.title) api.renameConversation(meta.id, title).catch((err: unknown) => (headerError = errorMessage(err)))
+  }
+
+  function fork(): void {
+    headerError = null
+    api.forkConversation(id, null, null).catch((err: unknown) => (headerError = errorMessage(err)))
   }
 </script>
 
@@ -128,8 +146,13 @@
         <h1 ondblclick={() => (renaming = meta.title)} title="Double-click to rename">{meta.title}</h1>
       {/if}
       <span class="project-label" title={meta.cwd}>{meta.project ?? 'No project'} <span class="muted">{tildify(meta.cwd)}</span></span>
-      {#if renameError}<span class="notice error">{renameError}</span>{/if}
+      {#if headerError}<span class="notice error">{headerError}</span>{/if}
       <div class="pane-toggles">
+        {#if meta.hasMessages}
+          <button class="ghost icon-button header-fork" aria-label="Fork" data-tip={forkBlocked ? 'Fork once the turn ends' : 'Fork conversation'} disabled={forkBlocked} onclick={fork}>
+            <Icon name="fork" />
+          </button>
+        {/if}
         {#if review}<button class={['ghost small', pane === 'review' && 'pane-on']} onclick={() => toggle('review')}>Review</button>{/if}
         <button class={['ghost icon-button', pane === 'browser' && 'pane-on']} aria-label="Browser" data-tip="Browser" onclick={() => toggle('browser')}>
           <Icon name="globe" />
@@ -154,7 +177,9 @@
             {#if wrapUp?.ask}<NextStep conversationId={id} {wrapUp} />{/if}
             {#if meta.compacting}<div class="status-line">Compacting conversation…</div>
             {:else if meta.requests.length > 0}<div class="status-line">Waiting for you</div>
-            {:else if meta.status === 'running'}<div class="status-line working">Working…</div>
+            {:else if meta.status === 'running'}<div class="status-line working">
+                Working…{#if turnStartedAt !== null && now - turnStartedAt >= 1000}<span class="elapsed">{duration(now - turnStartedAt)}</span>{/if}
+              </div>
             {:else if meta.status === 'starting'}<div class="status-line">Starting Claude Code…</div>{/if}
           </div>
         </div>

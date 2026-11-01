@@ -27,6 +27,7 @@ const api: KumiApi = {
   listRecentProjects: () => ipcRenderer.invoke(IPC.listRecentProjects),
   renameConversation: (id, title) => ipcRenderer.invoke(IPC.renameConversation, id, title),
   deleteConversation: (id) => ipcRenderer.invoke(IPC.deleteConversation, id),
+  forkConversation: (id, upTo, model) => ipcRenderer.invoke(IPC.forkConversation, id, upTo, model),
   getConversation: (id) => ipcRenderer.invoke(IPC.getConversation, id),
   send: (id, text, images) => ipcRenderer.invoke(IPC.send, id, text, images),
   interrupt: (id) => ipcRenderer.invoke(IPC.interrupt, id),

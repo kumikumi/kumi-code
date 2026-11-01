@@ -14,7 +14,7 @@
 import { BrowserWindow, screen, shell, webContents } from 'electron'
 import { randomUUID } from 'node:crypto'
 import type { Rectangle, WebContents } from 'electron'
-import { deleteSession, renameSession } from '@anthropic-ai/claude-agent-sdk'
+import { deleteSession, forkSession, getSessionInfo, getSessionMessages, renameSession } from '@anthropic-ai/claude-agent-sdk'
 import { Conversation } from '../core/conversation'
 import type { ConversationSettings, ToolAccess } from '../core/conversation'
 import { keyOf } from '../core/keys'
@@ -24,6 +24,7 @@ import type { ReviewAnswer } from '../core/review'
 import { KUMI_INSTRUCTIONS, KUMI_TOOLS, kumiServers } from '../core/kumi-tools'
 import { hasUncommittedChanges } from '../core/git'
 import { createScratchFolder, projectName } from '../core/sessions'
+import type { StoredMessage } from '../core/transcript'
 import { wrapUpResult } from '../core/wrap-up'
 import type { Store, StoredWindow } from '../core/store'
 import { IPC } from '@shared/types'
@@ -385,6 +386,42 @@ export class Workspace {
     this.broadcast(IPC.evConversationsChanged)
   }
 
+  /**
+   * Copies a conversation, up to the end of the turn whose last message is `upTo` or whole,
+   * into a new one with the same folder and settings (`model`, when given, instead of its
+   * own), and shows it in a tab after the active one of `entry`.
+   */
+  async forkConversation(entry: Win, id: string, upTo: string | null, model: string | null): Promise<void> {
+    const stored = this.opts.store.get().conversations[id]
+    if (!stored) throw new Error(`Unknown conversation ${id}`)
+    const meta = this.conversations.get(id)?.snapshotMeta()
+    // The copy would end inside the turn.
+    if (upTo === null && (meta?.status === 'running' || meta?.compacting)) throw new Error('Fork the whole conversation once the turn has ended')
+    const info = meta ? undefined : await getSessionInfo(id, { dir: stored.cwd })
+    const title = meta?.title ?? info?.customTitle ?? info?.summary ?? 'Conversation'
+    // forkSession stamps the copy's last message with the time it runs, so its own time is kept here.
+    const messages = await getSessionMessages(id, { dir: stored.cwd })
+    const last = (upTo ? messages.find((m) => m.uuid === upTo) : messages.at(-1)) as StoredMessage | undefined
+    if (!last) throw new Error(upTo ? `No message ${upTo} in the conversation` : 'The conversation has no messages')
+    const { sessionId } = await forkSession(id, { dir: stored.cwd, ...(upTo ? { upToMessageId: upTo } : {}) })
+    const at = Date.now()
+    const lastAt = last.timestamp ? Date.parse(last.timestamp) : NaN
+    this.opts.store.update((s) => {
+      s.conversations[sessionId] = {
+        cwd: stored.cwd,
+        scratch: stored.scratch,
+        createdAt: at,
+        model: model ?? meta?.model ?? stored.model,
+        effort: meta?.effort ?? stored.effort,
+        permissionMode: meta?.permissionMode ?? stored.permissionMode,
+        forkedFrom: { id, title, at, lastAt: Number.isNaN(lastAt) ? null : lastAt },
+      }
+      if (model) s.lastPicked = { ...s.lastPicked, model }
+    })
+    this.openInTab(entry, sessionId, true)
+    this.broadcast(IPC.evConversationsChanged)
+  }
+
   get currentUsage(): UsageWindow | null {
     return this.usage
   }
@@ -733,7 +770,7 @@ export class Workspace {
     const stored = this.opts.store.get().conversations[id]
     if (!stored) throw new Error(`Unknown conversation ${id}`)
     const settings = { model: stored.model, effort: stored.effort, permissionMode: stored.permissionMode }
-    const conversation = new Conversation(id, stored.cwd, projectName(stored.cwd, this.opts.scratchRoot), settings, {
+    const conversation = new Conversation(id, stored.cwd, projectName(stored.cwd, this.opts.scratchRoot), settings, stored.forkedFrom ?? null, {
       onMeta: (meta) => {
         const was = this.lastStatus.get(id)
         this.lastStatus.set(id, meta.status)

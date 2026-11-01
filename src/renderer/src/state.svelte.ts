@@ -2,11 +2,26 @@
 // code review, kept in sync with the main process through its events.
 
 import type { BrowserState, ConversationMeta, Review, TerminalState, TranscriptItem, UsageWindow, WindowState } from '@shared/types'
-import { errorMessage } from './util'
+import { addDays, errorMessage, startOfDay } from './util'
 
 export const api = window.kumi
 
-export const app = $state<{ window: WindowState | null; usage: UsageWindow | null; reviews: Review[] }>({ window: null, usage: null, reviews: [] })
+/** today: the start of the local day, which the transcript's times are relative to. */
+export const app = $state<{ window: WindowState | null; usage: UsageWindow | null; reviews: Review[]; today: number }>({
+  window: null,
+  usage: null,
+  reviews: [],
+  today: startOfDay(Date.now()),
+})
+
+// A new day turns today's times into yesterday's.
+function nextDay(): void {
+  setTimeout(() => {
+    app.today = startOfDay(Date.now())
+    nextDay()
+  }, addDays(app.today, 1) - Date.now() + 1000)
+}
+nextDay()
 
 // Callbacks the main process calls return nothing: the context bridge clones a
 // return value back, and a Svelte state proxy cannot be cloned.

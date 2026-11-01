@@ -58,8 +58,8 @@ describe('TranscriptBuilder', () => {
 
   it('tracks queued user messages until they are delivered', () => {
     const t = new TranscriptBuilder()
-    t.addUser('u1', 'first', [], false)
-    t.addUser('u2', 'second', [], true)
+    t.addUser('u1', 'first', [], false, 1)
+    t.addUser('u2', 'second', [], true, 2)
     t.markDelivered(['u2'])
     expect(t.items).toMatchObject([{ queued: false }, { queued: false }])
   })
@@ -97,12 +97,78 @@ describe('TranscriptBuilder', () => {
     expect(t.items[2]).toMatchObject({ result: { text: 'code' } })
     expect(t.items[3]).toMatchObject({ text: '/compact' })
   })
+
+  describe('turn timing', () => {
+    const T = Date.UTC(2026, 10, 1, 12)
+    const iso = (s: number): string => new Date(T + s * 1000).toISOString()
+    const user = (uuid: string, s: number, content: unknown) => ({ type: 'user' as const, uuid, parent_tool_use_id: null, timestamp: iso(s), message: { role: 'user', content } })
+    const reply = (uuid: string, s: number, text: string, parent: string | null = null) => ({ type: 'assistant' as const, uuid, parent_tool_use_id: parent, timestamp: iso(s), message: { id: `m-${uuid}`, content: [{ type: 'text', text }] } })
+    const call = (uuid: string, s: number, id: string, name: string) => ({ type: 'assistant' as const, uuid, parent_tool_use_id: null, timestamp: iso(s), message: { id: `m-${uuid}`, content: [{ type: 'tool_use', id, name, input: {} }] } })
+
+    it('times the turns of a stored session by their main-thread messages', () => {
+      const t = new TranscriptBuilder()
+      t.applyHistory([
+        user('u1', 0, 'Fix it'),
+        call('a1', 2, 'agent', 'Agent'),
+        reply('s1', 30, 'Subagent work does not end the turn', 'agent'),
+        user('r1', 40, [{ type: 'tool_result', tool_use_id: 'agent', content: 'done' }]),
+        reply('a2', 45, 'Fixed.'),
+        user('u2', 100, 'Now this'),
+        reply('a3', 101, 'Stopping'),
+        user('i1', 102, '[Request interrupted by user]'),
+        user('n1', 200, '<task-notification><summary>Tests passed</summary></task-notification>'),
+        reply('a4', 203, 'Noted.'),
+        user('u3', 300, '/cost'),
+        user('o1', 300, '<local-command-stdout>$0</local-command-stdout>'),
+      ])
+      expect(t.items.map((i) => i.kind)).toEqual(['user', 'tool', 'text', 'turn', 'user', 'text', 'notice', 'turn', 'notice', 'text', 'turn', 'user', 'command_output'])
+      expect(t.items[0]).toMatchObject({ at: T })
+      expect(t.items[3]).toMatchObject({ startedAt: T, finishedAt: T + 45_000, messageId: 'a2' })
+      // Interrupted: the turn ends with what came before the interruption.
+      expect(t.items[7]).toMatchObject({ startedAt: T + 100_000, finishedAt: T + 101_000, messageId: 'a3' })
+      // A background task's notification starts a turn of its own.
+      expect(t.items[10]).toMatchObject({ startedAt: T + 200_000, finishedAt: T + 203_000, messageId: 'a4' })
+      // A local command gets no reply, so no timing.
+      expect(t.turnStartedAt).toBeNull()
+    })
+
+    it("ends a fork's copy where it was forked, with its last message's own time", () => {
+      const t = new TranscriptBuilder()
+      const forkedAt = T + 3600_000
+      // forkSession stamped a2, written at 8 s, with the time of the fork.
+      t.applyHistory(
+        [user('u1', 0, 'Fix it'), reply('a1', 5, 'Looking'), reply('a2', 3600, 'Fixed.'), user('u2', 3700, 'And this?'), reply('a3', 3702, 'Done.')],
+        { id: 'source', title: 'Fix it', at: forkedAt, lastAt: T + 8000 },
+      )
+      expect(t.items.map((i) => i.kind)).toEqual(['user', 'text', 'text', 'turn', 'fork', 'user', 'text', 'turn'])
+      expect(t.items[3]).toMatchObject({ startedAt: T, finishedAt: T + 8000, messageId: 'a2' })
+      expect(t.items[4]).toMatchObject({ fromId: 'source', fromTitle: 'Fix it' })
+      expect(t.items[7]).toMatchObject({ startedAt: T + 3700_000, finishedAt: T + 3702_000 })
+    })
+
+    it('times live turns that got a reply', () => {
+      const t = new TranscriptBuilder()
+      t.addUser('u1', 'hi', [], false, 1000)
+      t.startTurn(1000)
+      // A message sent while the turn runs joins it.
+      t.addUser('u2', 'also', [], true, 1500)
+      t.startTurn(1500)
+      expect(t.turnStartedAt).toBe(1000)
+      t.touchTurn(4000, 'a1')
+      t.endTurn()
+      expect(t.items.at(-1)).toMatchObject({ kind: 'turn', startedAt: 1000, finishedAt: 4000, messageId: 'a1' })
+      t.startTurn(5000)
+      t.endTurn()
+      expect(t.items.filter((i) => i.kind === 'turn')).toHaveLength(1)
+      expect(t.hasMessages).toBe(true)
+    })
+  })
 })
 
 describe('classifyStoredUserText', () => {
   it('recognises what Claude Code injects', () => {
     expect(classifyStoredUserText('<command-name>/model</command-name><command-args>opus</command-args>')).toEqual({ kind: 'user', text: '/model opus' })
-    expect(classifyStoredUserText('[Request interrupted by user for tool use]')).toEqual({ kind: 'notice', text: 'Interrupted' })
+    expect(classifyStoredUserText('[Request interrupted by user for tool use]')).toEqual({ kind: 'interrupted' })
     expect(classifyStoredUserText('<task-notification><summary>Tests passed</summary></task-notification>')).toEqual({ kind: 'notice', text: 'Tests passed' })
     expect(classifyStoredUserText('This session is being continued from a previous conversation that ran out of context.')).toEqual({ kind: 'compact' })
     expect(classifyStoredUserText('plain text')).toEqual({ kind: 'user', text: 'plain text' })

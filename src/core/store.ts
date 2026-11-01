@@ -8,6 +8,7 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
 import type { EffortLevel, PermissionMode, Review } from '@shared/types'
+import type { ForkOrigin } from './transcript'
 
 const VERSION = 2
 const WRITE_DELAY_MS = 300
@@ -34,6 +35,8 @@ export interface StoredConversation {
   model: string | null
   effort: EffortLevel | null
   permissionMode: PermissionMode
+  /** Set when the conversation is a fork of another. */
+  forkedFrom?: ForkOrigin
 }
 
 export interface StoredState {

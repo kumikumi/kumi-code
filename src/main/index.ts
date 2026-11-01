@@ -52,6 +52,7 @@ app.whenReady().then(() => {
   ipcMain.handle(IPC.listRecentProjects, () => recentProjects(store.get(), scratchRoot))
   ipcMain.handle(IPC.renameConversation, (_e, id: string, title: string) => workspace.renameConversation(id, title))
   ipcMain.handle(IPC.deleteConversation, (_e, id: string) => workspace.deleteConversation(id))
+  ipcMain.handle(IPC.forkConversation, (e, id: string, upTo: string | null, model: string | null) => workspace.forkConversation(win(e), id, upTo, model))
 
   ipcMain.handle(IPC.getConversation, (_e, id: string) => workspace.snapshot(id))
   ipcMain.handle(IPC.send, (_e, id: string, text: string, images: ImageData[]) => workspace.conversation(id).send(text, images))

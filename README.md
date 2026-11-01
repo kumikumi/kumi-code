@@ -12,6 +12,11 @@ A barebones Claude Code frontend. TypeScript, Electron, Svelte and Anthropic's C
   tools, skills, subagents, slash commands, plugins, MCP servers, hooks, permission rules,
   `CLAUDE.md` files and auto-memory. User, project and local settings all load, so an agent
   here behaves like `claude` in the same folder.
+- **Timing**: every user message shows when it was sent, and every turn ends with how long the
+  agent worked and when it finished (the clock time today, more before).
+- **Fork**: a copy of a conversation, whole or up to the end of any turn, in a new tab. Once a
+  conversation has messages its model is fixed: picking another model forks it, because a reply
+  on another model would silently lose the earlier replies' reasoning and the prompt cache.
 - **Project**: the folder a conversation works in. "No project" gives the conversation a fresh,
   empty folder of its own under Kumi Code's data directory, like Claude Code's desktop app does.
 - **Tabs and windows**: every tab is a conversation or a new tab page. Tabs reorder by dragging,

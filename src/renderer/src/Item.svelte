@@ -1,15 +1,17 @@
-<!-- One transcript item: a message, thinking, a tool call with its result, or a notice. Review findings and relayed review messages get cards of their own. -->
+<!-- One transcript item: a message with when it was sent, thinking, a tool call with its result, a notice, or the end of a turn with how long it took. Review findings and relayed review messages get cards of their own. -->
 <script lang="ts">
   import type { TranscriptItem } from '@shared/types'
   import { WRAP_UP_TOOL } from '@shared/wrap-up'
   import FindingsCard from './FindingsCard.svelte'
+  import Icon from './Icon.svelte'
   import Item from './Item.svelte'
   import RelayCard from './RelayCard.svelte'
   import Rich from './Rich.svelte'
   import Todos from './Todos.svelte'
   import ToolInput from './ToolInput.svelte'
+  import { api, app } from './state.svelte'
   import { summarizeTool } from './tools'
-  import { str } from './util'
+  import { duration, errorMessage, fullTime, messageTime, str } from './util'
 
   let { item, cwd, conversationId }: { item: TranscriptItem; cwd: string; conversationId: string } = $props()
 
@@ -20,6 +22,12 @@
 
   let open = $state(false)
   let full = $state(false)
+  let error = $state<string | null>(null)
+
+  function act(p: Promise<unknown>): void {
+    error = null
+    p.catch((err: unknown) => (error = errorMessage(err)))
+  }
 
   const tool = $derived(item.kind === 'tool' ? item : null)
   const summary = $derived(tool && summarizeTool(tool.name, tool.input, cwd))
@@ -28,8 +36,13 @@
   const lastChild = $derived(tool?.children.findLast((c) => c.kind === 'tool'))
 </script>
 
+{#snippet sent(at: number | null)}
+  {#if at !== null}<time class="message-time" datetime={new Date(at).toISOString()} title="Sent {fullTime(at)}">{messageTime(at, app.today)}</time>{/if}
+{/snippet}
+
 {#if item.kind === 'user' && item.relay}
   <RelayCard relay={item.relay} queued={item.queued} />
+  {@render sent(item.at)}
 {:else if item.kind === 'user'}
   <div class={['item user', item.queued && 'queued']}>
     {#if item.images.length > 0}
@@ -39,6 +52,25 @@
     {/if}
     {#if item.text}<div class="user-text">{item.text}</div>{/if}
     {#if item.queued}<div class="queued-label">Queued</div>{/if}
+  </div>
+  {@render sent(item.at)}
+{:else if item.kind === 'turn'}
+  <div class="item turn-end">
+    {#if error}<span class="turn-error">{error}</span>{/if}
+    <button class="ghost small turn-fork" title="A new conversation with everything up to here" onclick={() => act(api.forkConversation(conversationId, item.messageId, null))}>
+      <Icon name="fork" />Fork from here
+    </button>
+    <time datetime={new Date(item.finishedAt).toISOString()} title={`Started ${fullTime(item.startedAt)}\nFinished ${fullTime(item.finishedAt)}`}>
+      Worked for {duration(item.finishedAt - item.startedAt)}<span class="turn-dot">·</span>{messageTime(item.finishedAt, app.today)}
+    </time>
+  </div>
+{:else if item.kind === 'fork'}
+  <div class="item divider fork-divider">
+    <span>
+      <Icon name="fork" />Forked from
+      <button class="fork-source" title="Show that conversation" onclick={() => act(api.showConversation(item.fromId))}>{item.fromTitle}</button>
+      {#if error}<span class="turn-error">{error}</span>{/if}
+    </span>
   </div>
 {:else if item.kind === 'text'}
   <div class="item text"><Rich text={item.text} streaming={item.streaming} /></div>
