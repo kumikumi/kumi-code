@@ -58,8 +58,8 @@ let browserSession: Session | null = null
 function profile(): Session {
   if (browserSession) return browserSession
   const s = session.fromPartition(PARTITION)
-  // A plain Chrome user agent: some sites turn Electron away.
-  s.setUserAgent(s.getUserAgent().replace(/ (Electron|kumi-code|Kumi Code)\/[\d.]+/gi, ''))
+  // The user agent stays Electron's. A Chrome one, on a browser that lacks Chrome's other
+  // traits, fails bot checks such as Cloudflare's Turnstile (error 600010).
   s.on('will-download', (event) => event.preventDefault())
   s.setPermissionRequestHandler((_wc, _permission, callback) => callback(false))
   browserSession = s
