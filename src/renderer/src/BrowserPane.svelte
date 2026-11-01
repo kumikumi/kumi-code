@@ -1,6 +1,7 @@
 <!-- A conversation's browser: its tabs, the active tab's page drawn from the frames the main process sends, and the user's mouse and keyboard passed back. The page renders at its own viewport; the pane only scales it to fit, so its size changes nothing the page sees. -->
 <script lang="ts">
   import type { BrowserAction, BrowserInput, BrowserState, Viewport } from '@shared/types'
+  import Icon from './Icon.svelte'
   import { api } from './state.svelte'
   import { errorMessage } from './util'
 
@@ -164,17 +165,23 @@
         <button class="browser-tab-title" title={tab.url} onclick={() => act({ kind: 'select', tabId: tab.id })}>
           {#if tab.loading}<span class="browser-loading"></span>{/if}{tab.title || (tab.url === 'about:blank' ? 'New tab' : tab.url)}
         </button>
-        <button class="browser-tab-close" aria-label="Close tab" title="Close tab" onclick={() => act({ kind: 'close', tabId: tab.id })}>×</button>
+        <button class="browser-tab-close" aria-label="Close tab" title="Close tab" onclick={() => act({ kind: 'close', tabId: tab.id })}><Icon name="close" /></button>
       </div>
     {/each}
-    <button class="ghost small" aria-label="New tab" title="New tab" onclick={() => act({ kind: 'newTab' })}>+</button>
+    <button class="ghost icon-button" aria-label="New tab" title="New tab" onclick={() => act({ kind: 'newTab' })}><Icon name="plus" /></button>
     <span class="spacer"></span>
-    <button class="ghost small" aria-label="Hide the browser" title="Hide" onclick={onhide}>×</button>
+    <button class="ghost icon-button" aria-label="Hide the browser" title="Hide" onclick={onhide}><Icon name="close" /></button>
   </div>
   <div class="browser-bar">
-    <button class="ghost small" aria-label="Back" title="Back" disabled={!active?.canGoBack} onclick={() => active && act({ kind: 'back', tabId: active.id })}>‹</button>
-    <button class="ghost small" aria-label="Forward" title="Forward" disabled={!active?.canGoForward} onclick={() => active && act({ kind: 'forward', tabId: active.id })}>›</button>
-    <button class="ghost small" aria-label="Reload" title="Reload" disabled={!active} onclick={() => active && act({ kind: 'reload', tabId: active.id })}>↻</button>
+    <button class="ghost icon-button" aria-label="Back" title="Back" disabled={!active?.canGoBack} onclick={() => active && act({ kind: 'back', tabId: active.id })}>
+      <Icon name="back" />
+    </button>
+    <button class="ghost icon-button" aria-label="Forward" title="Forward" disabled={!active?.canGoForward} onclick={() => active && act({ kind: 'forward', tabId: active.id })}>
+      <Icon name="forward" />
+    </button>
+    <button class="ghost icon-button" aria-label="Reload" title="Reload" disabled={!active} onclick={() => active && act({ kind: 'reload', tabId: active.id })}>
+      <Icon name="reload" />
+    </button>
     <input
       class="browser-url grow"
       placeholder="Enter a URL"
@@ -231,7 +238,10 @@
         oncontextmenu={(e) => e.preventDefault()}
       ></canvas>
     {:else}
-      <div class="browser-empty">No page is open. Enter a URL above, or let Claude open one.</div>
+      <div class="browser-empty">
+        <div class="browser-empty-title">No page open</div>
+        <div>Enter a URL above, or let Claude open one.</div>
+      </div>
     {/if}
   </div>
 </div>

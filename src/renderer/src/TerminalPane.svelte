@@ -4,6 +4,7 @@
   import { Terminal } from '@xterm/xterm'
   import '@xterm/xterm/css/xterm.css'
   import type { TerminalAction, TerminalState } from '@shared/types'
+  import Icon from './Icon.svelte'
   import { api } from './state.svelte'
   import { errorMessage } from './util'
 
@@ -52,7 +53,7 @@
       fontSize: 12.5,
       cursorBlink: true,
       scrollback: 5000,
-      theme: { background: '#15171c', foreground: '#d9dce1', cursor: '#d97757', selectionBackground: '#3a4150' },
+      theme: { background: '#1d2026', foreground: '#d9dce1', cursor: '#d97757', selectionBackground: '#3a4150' },
     })
     const f = new FitAddon()
     t.loadAddon(f)
@@ -119,12 +120,12 @@
         >
           {#if tab.agentTyping}<span class="terminal-typing"></span>{:else if tab.running}<span class="terminal-running"></span>{/if}{tab.title}{tab.exited ? ' (exited)' : ''}
         </button>
-        <button class="browser-tab-close" aria-label="Close tab" title="Close tab" onclick={() => act({ kind: 'close', tabId: tab.id })}>×</button>
+        <button class="browser-tab-close" aria-label="Close tab" title="Close tab" onclick={() => act({ kind: 'close', tabId: tab.id })}><Icon name="close" /></button>
       </div>
     {/each}
-    <button class="ghost small" aria-label="New tab" title="New shell" onclick={() => act({ kind: 'open' })}>+</button>
+    <button class="ghost icon-button" aria-label="New tab" title="New shell" onclick={() => act({ kind: 'open' })}><Icon name="plus" /></button>
     <span class="spacer"></span>
-    <button class="ghost small" aria-label="Hide the terminal" title="Hide" onclick={onhide}>×</button>
+    <button class="ghost icon-button" aria-label="Hide the terminal" title="Hide" onclick={onhide}><Icon name="close" /></button>
   </div>
   {#if error}<div class="notice error browser-error">{error}</div>{/if}
   <div class="terminal-view" hidden={!activeId}>
@@ -134,8 +135,8 @@
   </div>
   {#if !activeId}
     <div class="browser-empty">
-      No shell is open.
-      <div><button onclick={() => act({ kind: 'open' })}>Open a shell</button></div>
+      <div class="browser-empty-title">No shell open</div>
+      <button onclick={() => act({ kind: 'open' })}>Open a shell</button>
     </div>
   {/if}
 </div>

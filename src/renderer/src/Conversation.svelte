@@ -5,6 +5,7 @@
   import { parseWrapUp, WRAP_UP_TOOL } from '@shared/wrap-up'
   import BrowserPane from './BrowserPane.svelte'
   import Composer from './Composer.svelte'
+  import Icon from './Icon.svelte'
   import Dock from './Dock.svelte'
   import Item from './Item.svelte'
   import NextStep from './NextStep.svelte'
@@ -130,11 +131,11 @@
       <div class="pane-toggles">
         {#if review}<button class={['ghost small', pane === 'review' && 'pane-on']} onclick={() => toggle('review')}>Review</button>{/if}
         <button class={['ghost icon-button', pane === 'browser' && 'pane-on']} aria-label="Browser" data-tip="Browser" onclick={() => toggle('browser')}>
-          <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.25" /><path d="M1.75 8h12.5M8 1.75c-1.7 1.7-2.5 3.8-2.5 6.25s.8 4.55 2.5 6.25M8 1.75c1.7 1.7 2.5 3.8 2.5 6.25s-.8 4.55-2.5 6.25" /></svg>
+          <Icon name="globe" />
           {#if browser?.activity}<span class="browser-activity-dot"></span>{/if}
         </button>
         <button class={['ghost icon-button', pane === 'terminal' && 'pane-on']} aria-label="Terminal" data-tip="Terminal" onclick={() => toggle('terminal')}>
-          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 4l4 4-4 4M8 12.5h5.5" /></svg>
+          <Icon name="terminal" />
           {#if c.terminals?.tabs.some((t) => t.running)}<span class="terminal-running"></span>{/if}
         </button>
       </div>

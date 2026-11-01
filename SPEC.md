@@ -34,7 +34,8 @@ What the code does, precisely. `README.md` is the short version.
   `Conversation.svelte`, `Item.svelte` (a transcript item), `ToolInput.svelte`, `Requests.svelte`,
   `Composer.svelte`, `Rich.svelte` (markdown or a code block), `Todos.svelte`, `FindingsCard.svelte`,
   `FindingDetails.svelte`, `RelayCard.svelte`, `ReviewPanel.svelte`, `Dock.svelte` (the pane beside
-  the transcript), `BrowserPane.svelte`, `TerminalPane.svelte`, `NextStep.svelte`; `state.svelte.ts`
+  the transcript), `BrowserPane.svelte`, `TerminalPane.svelte`, `NextStep.svelte`, `Icon.svelte` (line
+  icons); `state.svelte.ts`
   (window and conversation state), `markdown.ts`, `tools.ts`, `util.ts`.
 
 ## Auth

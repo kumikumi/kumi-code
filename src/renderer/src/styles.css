@@ -367,7 +367,8 @@ button.stop { background: var(--bg-active); }
 button.pane-on { background: var(--bg-active); color: var(--text-strong); }
 .pane-toggles { flex: none; align-self: center; display: flex; align-items: center; gap: 2px; margin: -3px 0; }
 .icon-button { position: relative; display: grid; place-items: center; width: 28px; height: 28px; padding: 0; }
-.icon-button svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
+.icon { flex: none; width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
+.icon path { vector-effect: non-scaling-stroke; }
 .icon-button .browser-activity-dot, .icon-button .terminal-running { position: absolute; top: 3px; right: 3px; width: 6px; height: 6px; margin: 0; }
 /* A label under the button on hover; aligned to its right edge, as these buttons sit at the window's right.
    It shows after a pause, and then at once for the buttons beside it while the pointer stays among them. */
@@ -382,31 +383,42 @@ button.pane-on { background: var(--bg-active); color: var(--text-strong); }
 
 /* ---- browser ---- */
 .browser-pane { flex: 1; min-height: 0; display: flex; flex-direction: column; }
-.browser-tabs { flex: none; display: flex; align-items: center; gap: 2px; padding: 6px 6px 0 10px; min-width: 0; }
-.browser-tab { display: flex; align-items: center; min-width: 0; max-width: 180px; border-radius: 6px 6px 0 0; }
-.browser-tab.active { background: var(--bg); }
+/* Tabs and the buttons beside them share one center line, so each has the same space above and below. */
+.browser-tabs { flex: none; display: flex; align-items: center; gap: 2px; height: 36px; padding: 0 6px 0 8px; min-width: 0; }
+.browser-tabs .icon-button { width: 26px; height: 26px; }
+.browser-tab { display: flex; align-items: center; height: 26px; min-width: 0; max-width: 180px; border-radius: 6px; }
+.browser-tab:hover { background: var(--bg-raised); }
+.browser-tab.active { background: var(--bg-hover); }
 .browser-tab-title {
-  flex: 1; min-width: 0; padding: 4px 4px 4px 8px; background: transparent; font-size: 12px; color: var(--muted);
+  flex: 1; min-width: 0; height: 100%; padding: 0 4px 0 10px; background: transparent; font-size: 12px; color: var(--muted);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left;
 }
 .browser-tab.active .browser-tab-title { color: var(--text-strong); }
 .browser-tab-title:hover { background: transparent; }
-.browser-tab-close { flex: none; width: 18px; height: 18px; padding: 0; margin-right: 4px; border-radius: 50%; background: transparent; color: var(--faint); font-size: 14px; line-height: 16px; }
+.browser-tab-close { flex: none; display: grid; place-items: center; width: 18px; height: 18px; padding: 0; margin-right: 4px; border-radius: 4px; background: transparent; color: var(--muted); }
 .browser-tab-close:hover { background: var(--bg-active); }
+.browser-tab-close .icon { width: 12px; height: 12px; }
 .browser-loading { display: inline-block; width: 8px; height: 8px; margin-right: 6px; border-radius: 50%; border: 1.5px solid var(--faint); border-top-color: var(--accent); animation: spin 0.8s linear infinite; }
 .browser-bar { flex: none; display: flex; align-items: center; gap: 4px; padding: 6px 8px; background: var(--bg); flex-wrap: wrap; }
+.browser-bar .icon-button { width: 24px; height: 24px; }
 .browser-bar + .browser-bar { padding-top: 0; }
-.browser-url { font-family: var(--mono); font-size: 12px; padding: 4px 8px; }
+.browser-url { font-size: 12px; padding: 4px 8px; }
 .browser-viewport select { font-size: 12px; padding: 2px 4px; }
 .viewport-size { width: 64px; font-size: 12px; padding: 3px 6px; }
 .browser-activity { flex: none; display: flex; align-items: center; gap: 8px; padding: 4px 12px; font-size: 12px; color: var(--text); background: var(--bg-raised); border-bottom: 1px solid var(--border); }
 .browser-activity-dot { display: inline-block; width: 7px; height: 7px; margin-left: 6px; border-radius: 50%; background: var(--accent); animation: pulse 1.2s ease-in-out infinite; }
 .browser-activity .browser-activity-dot { margin-left: 0; }
 .browser-error { padding: 4px 12px; }
-.browser-view { flex: 1; min-height: 0; position: relative; background: #0f1115; }
+.browser-view { flex: 1; min-height: 0; position: relative; display: flex; flex-direction: column; background: #0f1115; }
 .browser-view canvas { position: absolute; inset: 0; margin: auto; max-width: 100%; max-height: 100%; background: #fff; outline: none; }
 .browser-view canvas:focus { box-shadow: 0 0 0 1px var(--faint); }
-.browser-empty { padding: 24px; color: var(--faint); text-align: center; font-size: 13px; }
+/* What the browser or terminal pane shows with no tab: on the pane's surface, in the header's sizes and colors. */
+.browser-empty {
+  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 24px 24px 12vh;
+  background: var(--bg); color: var(--muted); font-size: 12px; text-align: center;
+}
+.browser-empty-title { color: var(--text); font-size: 13px; font-weight: 500; }
+.browser-empty button { margin-top: 8px; }
 
 /* ---- next step ---- */
 .next-step { margin: 16px 0 8px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg-raised); display: flex; flex-direction: column; gap: 8px; }
@@ -416,7 +428,7 @@ button.pane-on { background: var(--bg-active); color: var(--text-strong); }
 
 /* ---- terminal ---- */
 .terminal-pane { flex: 1; min-height: 0; display: flex; flex-direction: column; }
-.terminal-view { position: relative; flex: 1; min-height: 0; padding: 6px 4px 4px 8px; background: #15171c; }
+.terminal-view { position: relative; flex: 1; min-height: 0; padding: 6px 4px 4px 8px; background: var(--bg); }
 .terminal-host { height: 100%; }
 .terminal-running { display: inline-block; width: 7px; height: 7px; margin: 0 6px; border-radius: 50%; background: var(--green); animation: pulse 1.2s ease-in-out infinite; }
 .terminal-typing { display: inline-block; width: 7px; height: 7px; margin: 0 6px; border-radius: 50%; background: var(--accent); animation: pulse 0.6s ease-in-out infinite; }
