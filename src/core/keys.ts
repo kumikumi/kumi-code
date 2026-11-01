@@ -115,7 +115,7 @@ export function parseKeys(text: string): KeyPress[] {
     .map((spec) => parseKey(spec))
 }
 
-/** The key that types a character, for the user's typing in the browser pane. */
+/** The key that types a character on a US layout, as the browser tools name it. */
 export function keyOf(keyName: string, modifiers: number): KeyPress | null {
   const typing = (modifiers & (CTRL | META | ALT)) === 0
   const named = NAMED[keyName.toLowerCase()]
@@ -147,6 +147,20 @@ export function keyOf(keyName: string, modifiers: number): KeyPress | null {
   if (digit !== -1) return { key: keyName, code: `Digit${digit}`, keyCode: 48 + digit, text: typing ? keyName : '', modifiers: modifiers | SHIFT, commands }
   // Any other character: typed, with no key of its own.
   return { key: keyName, code: '', keyCode: 0, text: typing ? keyName : '', modifiers, commands }
+}
+
+/**
+ * A key the user pressed in the browser pane, from the DOM event the pane got. Its key is
+ * already what their layout types, with Option too (Option+2 is "@" on a Finnish Mac), so
+ * it is passed on as it is rather than worked out from a US layout as keyOf does.
+ */
+export function userKey(key: string, code: string, keyCode: number, modifiers: number): KeyPress {
+  const single = [...key].length === 1
+  // Cmd and Ctrl make shortcuts, except Ctrl with Alt, which is AltGr on Windows and Linux.
+  const typing = (modifiers & META) === 0 && ((modifiers & CTRL) === 0 || (modifiers & ALT) !== 0)
+  const text = !typing ? '' : single ? key : (NAMED[key.toLowerCase()]?.text ?? '')
+  const commands = single && (modifiers & META) !== 0 && (modifiers & (CTRL | ALT)) === 0 ? commandsOf(key.toLowerCase(), (modifiers & SHIFT) !== 0) : []
+  return { key, code, keyCode, text, modifiers, commands }
 }
 
 function commandsOf(letter: string, shift: boolean): string[] {

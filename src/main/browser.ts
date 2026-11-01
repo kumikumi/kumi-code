@@ -8,8 +8,8 @@
 // Tabs share one persistent profile, apart from Kumi Code's own: sign-ins to the
 // apps being worked on last across conversations and restarts.
 
-import { BrowserWindow, session } from 'electron'
-import type { NativeImage, Rectangle, Session, WebContents } from 'electron'
+import { BrowserWindow, clipboard, Menu, session } from 'electron'
+import type { ContextMenuParams, MenuItemConstructorOptions, NativeImage, Rectangle, Session, WebContents } from 'electron'
 import type { BrowserState, BrowserTabInfo, Viewport } from '@shared/types'
 import type { KeyPress } from '../core/keys'
 import { HELPER_WORLD, helperCall } from './browser-page'
@@ -22,6 +22,8 @@ const FRAME_RATE = 30
 const CONSOLE_LIMIT = 1000
 const NETWORK_LIMIT = 500
 const NAVIGATION_TIMEOUT_MS = 30_000
+/** How long after the user's right click a context menu the page asks for is still theirs. */
+const CONTEXT_MENU_MS = 1000
 
 export interface ConsoleEntry {
   level: 'debug' | 'info' | 'warning' | 'error'
@@ -46,6 +48,8 @@ interface TabEvents {
   painted(tab: BrowserTab, image: NativeImage): void
   /** The page asked for a new window. */
   open(url: string): void
+  /** The user right-clicked the page: the menu to show them. */
+  contextMenu(menu: Menu): void
 }
 
 let browserSession: Session | null = null
@@ -76,6 +80,8 @@ export class BrowserTab {
   frameScale = 1
   private forceUnload = false
   private blockedUnload = false
+  /** Until when the context menu the page asks for is the user's: the agent's right clicks show none. */
+  private contextMenuUntil = 0
   private readonly ready: Promise<void>
 
   constructor(
@@ -94,6 +100,16 @@ export class BrowserTab {
     this.window.excludedFromShownWindowsMenu = true
     const wc = this.wc
     wc.setFrameRate(FRAME_RATE)
+    // Keys the page leaves unhandled stay with the page. Electron would offer them to the
+    // app menu, where a lone Cmd, which a synthetic event has no character for, matches the
+    // first item without a shortcut: About.
+    wc.setIgnoreMenuShortcuts(true)
+    // An offscreen page shows no menu of its own.
+    wc.on('context-menu', (_event, params) => {
+      if (Date.now() > this.contextMenuUntil) return
+      this.contextMenuUntil = 0
+      this.events.contextMenu(this.contextMenu(params))
+    })
     wc.on('paint', (_event, _dirty, image) => this.events.painted(this, image))
     for (const name of ['page-title-updated', 'did-navigate', 'did-navigate-in-page', 'did-start-loading', 'did-stop-loading'] as const) {
       wc.on(name as 'did-stop-loading', () => this.events.changed())
@@ -292,6 +308,11 @@ export class BrowserTab {
     this.wc.openDevTools({ mode: 'detach' })
   }
 
+  /** The user pressed the right button on the page: the context menu the page asks for next is theirs to see. */
+  expectContextMenu(): void {
+    this.contextMenuUntil = Date.now() + CONTEXT_MENU_MS
+  }
+
   async responseBody(requestId: string): Promise<{ body: string; base64Encoded: boolean }> {
     await this.ready
     if (!this.network.has(requestId)) throw new Error(`No request ${requestId}; read_network_requests lists them`)
@@ -300,6 +321,52 @@ export class BrowserTab {
 
   destroy(): void {
     if (!this.window.isDestroyed()) this.window.destroy()
+  }
+
+  /** A browser's menu for what was right-clicked: a link, an image, a text field or selected text, else the page. */
+  private contextMenu(params: ContextMenuParams): Menu {
+    const wc = this.wc
+    const items: MenuItemConstructorOptions[] = []
+    const group = (...group: MenuItemConstructorOptions[]): void => {
+      if (items.length > 0) items.push({ type: 'separator' })
+      items.push(...group)
+    }
+    if (params.linkURL) {
+      group({ label: 'Open Link in New Tab', click: () => this.events.open(params.linkURL) }, { label: 'Copy Link Address', click: () => clipboard.writeText(params.linkURL) })
+    }
+    if (params.mediaType === 'image' && params.srcURL) {
+      group({ label: 'Copy Image', click: () => wc.copyImageAt(params.x, params.y) }, { label: 'Copy Image Address', click: () => clipboard.writeText(params.srcURL) })
+    }
+    const can = params.editFlags
+    if (params.isEditable) {
+      group(
+        { label: 'Undo', enabled: can.canUndo, click: () => wc.undo() },
+        { label: 'Redo', enabled: can.canRedo, click: () => wc.redo() },
+        { type: 'separator' },
+        { label: 'Cut', enabled: can.canCut, click: () => wc.cut() },
+        { label: 'Copy', enabled: can.canCopy, click: () => wc.copy() },
+        { label: 'Paste', enabled: can.canPaste, click: () => wc.paste() },
+        { label: 'Select All', enabled: can.canSelectAll, click: () => wc.selectAll() },
+      )
+    } else if (params.selectionText) {
+      group({ label: 'Copy', click: () => wc.copy() })
+    }
+    if (items.length === 0) {
+      const history = wc.navigationHistory
+      group(
+        { label: 'Back', enabled: history.canGoBack(), click: () => history.goBack() },
+        { label: 'Forward', enabled: history.canGoForward(), click: () => history.goForward() },
+        { label: 'Reload', click: () => wc.reload() },
+      )
+    }
+    group({
+      label: 'Inspect',
+      click: () => {
+        this.devtools()
+        wc.inspectElement(params.x, params.y)
+      },
+    })
+    return Menu.buildFromTemplate(items)
   }
 
   private protocol(method: string, params?: Record<string, unknown>): Promise<unknown> {
@@ -359,6 +426,8 @@ export class BrowserTab {
 export interface BrowserEvents {
   state(state: BrowserState): void
   frame(tabId: string, jpeg: Buffer, width: number, height: number): void
+  /** A menu for the user's right click on a tab, to show where they clicked. */
+  contextMenu(menu: Menu): void
 }
 
 export class Browser {
@@ -410,6 +479,7 @@ export class Browser {
       open: (url) => {
         void this.create(true).then((opened) => opened.navigate(url))
       },
+      contextMenu: (menu) => this.events.contextMenu(menu),
     })
     this.tabs.push(tab)
     if (foreground || this.activeId === null) this.activeId = tab.id

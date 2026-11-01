@@ -66,6 +66,62 @@ await win.keyboard.press('Backspace')
 await waitUntil(win, 'typing reaches the page', async () => (await js('document.getElementById("name").value')) === 'hi ther')
 check(true, 'typing in the pane types in the page')
 
+// The pane passes on what the user's layout types, with Option too: on a Finnish Mac, Option+2
+// types "@" and Shift+7 "/". A key the page leaves unhandled, such as Cmd pressed alone, reaches
+// no app menu item, where it matched the first one without a shortcut (About).
+const name = () => js('document.getElementById("name").value')
+const tabId = (await win.evaluate((id) => window.kumi.getBrowser(id), id)).activeTabId
+const press = (key, code, keyCode, modifiers) =>
+  win.evaluate(
+    ([id, tabId, input]) => {
+      window.kumi.browserInput(id, tabId, { ...input, action: 'down' })
+      window.kumi.browserInput(id, tabId, { ...input, action: 'up' })
+    },
+    [id, tabId, { type: 'key', key, code, keyCode, modifiers }],
+  )
+await press('@', 'Digit2', 50, 1)
+await press('/', 'Digit7', 55, 8)
+await waitUntil(win, 'the typed characters reach the page', async () => (await name()) === 'hi ther@/')
+check(true, 'Option and Shift type what the layout types')
+await app.evaluate(({ Menu }) => {
+  globalThis.appMenu = Menu.getApplicationMenu()
+  globalThis.menuClicks = 0
+  Menu.setApplicationMenu(Menu.buildFromTemplate([{ label: 'App', submenu: [{ label: 'First', click: () => globalThis.menuClicks++ }] }]))
+})
+await app.evaluate(({ clipboard }) => clipboard.writeText('x@y'))
+await press('Meta', 'MetaLeft', 91, 4)
+await press('v', 'KeyV', 86, 4)
+await waitUntil(win, 'Cmd+V pastes', async () => (await name()) === 'hi ther@/x@y')
+await win.waitForTimeout(300)
+check((await app.evaluate(() => globalThis.menuClicks)) === 0, 'Cmd and Cmd+V in the page click no app menu item')
+await app.evaluate(({ Menu }) => Menu.setApplicationMenu(globalThis.appMenu))
+
+// A right click shows a browser's menu for what is under the pointer; the agent's shows none.
+await app.evaluate(({ Menu }) => {
+  globalThis.popups = []
+  globalThis.popup = Menu.prototype.popup
+  Menu.prototype.popup = function () {
+    globalThis.popups.push(this)
+  }
+})
+const popups = () => app.evaluate(() => globalThis.popups.map((menu) => menu.items.map((item) => item.label).filter(Boolean)))
+await win.mouse.click(...(await toScreen(140, 134)), { button: 'right' })
+await waitUntil(win, 'the right click asks for a menu', async () => (await popups()).length === 1)
+const items = (await popups())[0]
+check(['Cut', 'Copy', 'Paste', 'Select All', 'Inspect'].every((l) => items.includes(l)), `a right click on a text field shows its editing menu (${items.join(', ')})`)
+await app.evaluate(({ clipboard }) => {
+  clipboard.writeText('!')
+  globalThis.popups[0].items.find((item) => item.label === 'Paste').click()
+})
+await waitUntil(win, 'Paste in the menu pastes', async () => (await name()) === 'hi ther@/x@y!')
+check(true, "the menu's Paste pastes in the page")
+await tool('computer', { action: 'right_click', coordinate: [140, 134] })
+await win.waitForTimeout(500)
+check((await popups()).length === 1, "the agent's right click shows no menu")
+await app.evaluate(({ Menu }) => {
+  Menu.prototype.popup = globalThis.popup
+})
+
 // The viewport is set apart from the pane, by the user or the agent.
 await pane.locator('.browser-viewport select').first().selectOption('Mobile')
 await waitUntil(win, 'the viewport changes', async () => (await js('innerWidth')) === 375)

@@ -17,7 +17,7 @@ import type { Rectangle, WebContents } from 'electron'
 import { deleteSession, forkSession, getSessionInfo, getSessionMessages, renameSession } from '@anthropic-ai/claude-agent-sdk'
 import { Conversation } from '../core/conversation'
 import type { ConversationSettings, ToolAccess } from '../core/conversation'
-import { keyOf } from '../core/keys'
+import { userKey } from '../core/keys'
 import { Previews } from '../core/previews'
 import { Reviews } from '../core/review'
 import type { ReviewAnswer } from '../core/review'
@@ -556,12 +556,12 @@ export class Workspace {
     }
     if (input.type === 'mouse') {
       const type = input.action === 'down' ? 'mousePressed' : input.action === 'up' ? 'mouseReleased' : 'mouseMoved'
+      if (input.action === 'down' && input.button === 'right') tab.expectContextMenu()
       sent(tab.mouse(type, input.x, input.y, input.button, input.clickCount, input.modifiers))
     } else if (input.type === 'wheel') {
       sent(tab.wheel(input.x, input.y, input.deltaX, input.deltaY, input.modifiers))
     } else {
-      const press = keyOf(input.key, input.modifiers) ?? { key: input.key, code: input.code, keyCode: input.keyCode, text: '', modifiers: input.modifiers, commands: [] }
-      sent(tab.key({ ...press, code: input.code || press.code, keyCode: input.keyCode || press.keyCode }, input.action))
+      sent(tab.key(userKey(input.key, input.code, input.keyCode, input.modifiers), input.action))
     }
   }
 
@@ -670,6 +670,10 @@ export class Workspace {
             const contents: WebContents | undefined = webContents.fromId(contentsId)
             if (contents && !contents.isDestroyed()) contents.send(IPC.evBrowserFrame, id, tabId, jpeg, width, height)
           }
+        },
+        contextMenu: (menu) => {
+          const found = this.findTab(id)
+          if (found && !found.entry.win.isDestroyed()) menu.popup({ window: found.entry.win })
         },
       })
       browser.setWatched(this.browserWatchers.has(id))
