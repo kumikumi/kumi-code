@@ -506,7 +506,7 @@ export class Workspace {
 
   /** The conversation's browser; no tabs when it has none. */
   browserState(id: string): BrowserState {
-    return this.browsers.get(id)?.state() ?? { tabs: [], activeTabId: null, activity: null }
+    return this.browsers.get(id)?.state() ?? { tabs: [], activeTabId: null, activity: null, downloads: [] }
   }
 
   /** What the user does in the browser pane. Pages the user opens, the agent may open too. */
@@ -541,6 +541,15 @@ export class Workspace {
         return
       case 'viewport':
         await browser.tab(action.tabId).setViewport(action.viewport)
+        return
+      case 'cancelDownload':
+        browser.cancelDownload(action.downloadId)
+        return
+      case 'showDownload':
+        shell.showItemInFolder(browser.downloadOf(action.downloadId).path)
+        return
+      case 'removeDownload':
+        browser.removeDownload(action.downloadId)
         return
     }
   }

@@ -1,5 +1,16 @@
 import { describe, expect, it } from 'vitest'
-import { duration, groupByDate, messageTime } from './util'
+import { duration, fileSize, groupByDate, messageTime } from './util'
+
+describe('fileSize', () => {
+  it('reads like Finder', () => {
+    expect(fileSize(0)).toBe('0 B')
+    expect(fileSize(999)).toBe('999 B')
+    expect(fileSize(3400)).toBe('3.4 kB')
+    expect(fileSize(12_345_678)).toBe('12 MB')
+    expect(fileSize(999_999)).toBe('1.0 MB')
+    expect(fileSize(2_500_000_000)).toBe('2.5 GB')
+  })
+})
 
 describe('groupByDate', () => {
   it('groups newest-first items by calendar day, week, month', () => {

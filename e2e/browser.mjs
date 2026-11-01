@@ -1,19 +1,37 @@
 // The browser: tools driven without a model (the e2e build exposes the workspace), the pane's
-// frames and the user's input, the viewport apart from the pane's size, tools while the tab is
-// hidden, and an agent using the tools, which asks before opening a site that is not local.
+// frames and the user's input, downloads, the viewport apart from the pane's size, tools while
+// the tab is hidden, and an agent using the tools, which asks before opening a site that is not local.
 import http from 'node:http'
+import { execFileSync } from 'node:child_process'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { check, deleteConversations, launch, newUserData, shots, startConversation, waitForReply, waitUntil } from './launch.mjs'
 
 let clicks = 0
+let slow = null
 const page = `<!doctype html><html><head><title>Browser test</title><meta name="viewport" content="width=device-width"></head>
 <body style="margin:0;font:16px sans-serif">
 <button id="add" style="position:absolute;left:40px;top:40px;width:160px;height:48px" onclick="fetch('/clicked',{method:'POST'})">Add one</button>
 <input id="name" aria-label="Name" style="position:absolute;left:40px;top:120px;width:200px;height:28px">
+<a id="notes" href="/notes.txt" style="position:absolute;left:40px;top:200px">Notes</a>
 </body></html>`
 const server = http.createServer((req, res) => {
   if (req.url === '/clicked') {
     clicks++
     res.end('ok')
+    return
+  }
+  if (req.url === '/notes.txt') {
+    res.setHeader('content-type', 'text/plain')
+    res.setHeader('content-disposition', 'attachment; filename="notes.txt"')
+    res.end('the notes')
+    return
+  }
+  if (req.url === '/slow.bin') {
+    // Sends a little and then nothing, so the download stays in progress.
+    res.writeHead(200, { 'content-type': 'application/octet-stream', 'content-length': '1000000', 'content-disposition': 'attachment; filename="slow.bin"' })
+    res.write(Buffer.alloc(1000))
+    slow = res
     return
   }
   res.setHeader('content-type', 'text/html')
@@ -22,7 +40,8 @@ const server = http.createServer((req, res) => {
 await new Promise((done) => server.listen(0, done))
 const base = `http://localhost:${server.address().port}`
 
-const { app, page: win } = await launch(newUserData())
+const userData = newUserData()
+const { app, page: win } = await launch(userData)
 const id = await startConversation(win)
 const tool = (name, input = {}) => app.evaluate((_electron, [id, name, input]) => globalThis.kumiWorkspace.browserTool(id, name, input), [id, name, input])
 const textOf = (result) => result.content.filter((c) => c.type === 'text').map((c) => c.text).join('\n')
@@ -121,6 +140,39 @@ check((await popups()).length === 1, "the agent's right click shows no menu")
 await app.evaluate(({ Menu }) => {
   Menu.prototype.popup = globalThis.popup
 })
+
+// A download is saved in the Downloads folder (the test's own) under a name not yet taken there,
+// shows in the pane, and tabs_context lists it for the agent.
+const downloads = async () => (await win.evaluate((id) => window.kumi.getBrowser(id), id)).downloads
+const downloadsDir = join(userData, 'Downloads')
+await win.mouse.click(...(await toScreen(55, 210)))
+await waitUntil(win, 'the clicked download completes', async () => (await downloads())[0]?.state === 'completed')
+const [notes] = await downloads()
+check(notes.path === join(downloadsDir, 'notes.txt') && readFileSync(notes.path, 'utf8') === 'the notes', `a clicked download is saved in the Downloads folder (${notes.path})`)
+const quarantined = () => {
+  try {
+    return execFileSync('xattr', ['-p', 'com.apple.quarantine', notes.path], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).includes('Kumi Code')
+  } catch {
+    return false
+  }
+}
+await waitUntil(win, 'the download is quarantined', async () => quarantined())
+check(true, 'the download is quarantined for Gatekeeper')
+const row = (name) => pane.locator('.browser-download', { has: win.locator('.browser-download-name', { hasText: new RegExp(`^${name.replace(/[()]/g, '\\$&')}$`) }) })
+check(await row('notes.txt').getByRole('button', { name: 'Show in Finder' }).isVisible(), 'the pane lists the finished download')
+await win.mouse.click(...(await toScreen(55, 210)))
+await waitUntil(win, 'the second download completes', async () => (await downloads())[1]?.state === 'completed')
+check((await downloads())[1].path === join(downloadsDir, 'notes (1).txt'), 'a second download of the same file gets a name of its own')
+check(textOf(await tool('tabs_context')).includes(JSON.stringify(join(downloadsDir, 'notes (1).txt'))), 'tabs_context lists the downloads with their paths')
+await row('notes (1).txt').getByRole('button', { name: 'Remove from the list' }).click()
+await waitUntil(win, 'the download leaves the list', async () => (await downloads()).length === 1)
+check(true, 'a finished download can be taken off the list')
+await tool('navigate', { url: `${base}/slow.bin` })
+await waitUntil(win, 'the slow download shows', async () => (await downloads())[1]?.state === 'progressing')
+await row('slow.bin').getByRole('button', { name: 'Cancel' }).click()
+await waitUntil(win, 'the slow download is cancelled', async () => (await downloads())[1]?.state === 'cancelled')
+check(await row('slow.bin').getByText('Cancelled').isVisible(), "the agent's download can be cancelled in the pane")
+slow?.destroy()
 
 // The viewport is set apart from the pane, by the user or the agent.
 await pane.locator('.browser-viewport select').first().selectOption('Mobile')

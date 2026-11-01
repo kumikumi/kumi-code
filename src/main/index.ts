@@ -11,6 +11,8 @@ import { Workspace } from './workspace'
 
 // A separate state directory, for running a second instance in development.
 if (process.env.KUMI_USER_DATA) app.setPath('userData', process.env.KUMI_USER_DATA)
+// Tests download into their own state directory, not the user's Downloads folder.
+if (import.meta.env.MODE === 'e2e') app.setPath('downloads', join(app.getPath('userData'), 'Downloads'))
 
 app.whenReady().then(() => {
   const dataDir = app.getPath('userData')

@@ -186,12 +186,26 @@ export interface BrowserTabInfo {
   viewport: Viewport
 }
 
+/** A file a page of the browser downloaded, into the user's Downloads folder. */
+export interface BrowserDownload {
+  id: string
+  /** The file's name in the folder, which a name taken there makes "report (1).pdf". */
+  name: string
+  path: string
+  state: 'progressing' | 'completed' | 'cancelled' | 'interrupted'
+  receivedBytes: number
+  /** 0 when the server did not say. */
+  totalBytes: number
+}
+
 /** A conversation's browser. */
 export interface BrowserState {
   tabs: BrowserTabInfo[]
   activeTabId: string | null
   /** While a browser tool runs: what it does, e.g. "Opens the Filters menu". */
   activity: string | null
+  /** Oldest first, until the user removes them from the list. */
+  downloads: BrowserDownload[]
 }
 
 /** What the user does in the browser pane. */
@@ -201,6 +215,7 @@ export type BrowserAction =
   | { kind: 'back' | 'forward' | 'reload' | 'select' | 'close' | 'devtools'; tabId: string }
   | { kind: 'newTab' }
   | { kind: 'viewport'; tabId: string; viewport: Viewport }
+  | { kind: 'cancelDownload' | 'showDownload' | 'removeDownload'; downloadId: string }
 
 /** The user's mouse and keyboard on a tab, in page pixels. modifiers: Alt 1, Ctrl 2, Meta 4, Shift 8. */
 export type BrowserInput =

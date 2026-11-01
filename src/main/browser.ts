@@ -8,9 +8,13 @@
 // Tabs share one persistent profile, apart from Kumi Code's own: sign-ins to the
 // apps being worked on last across conversations and restarts.
 
-import { BrowserWindow, clipboard, Menu, session } from 'electron'
-import type { ContextMenuParams, MenuItemConstructorOptions, NativeImage, Rectangle, Session, WebContents } from 'electron'
-import type { BrowserState, BrowserTabInfo, Viewport } from '@shared/types'
+import { app, BrowserWindow, clipboard, Menu, session } from 'electron'
+import type { ContextMenuParams, DownloadItem, MenuItemConstructorOptions, NativeImage, Rectangle, Session, WebContents } from 'electron'
+import { execFile } from 'node:child_process'
+import { randomUUID } from 'node:crypto'
+import { existsSync, mkdirSync } from 'node:fs'
+import { basename, extname, join } from 'node:path'
+import type { BrowserDownload, BrowserState, BrowserTabInfo, Viewport } from '@shared/types'
 import type { KeyPress } from '../core/keys'
 import { HELPER_WORLD, helperCall } from './browser-page'
 
@@ -50,9 +54,15 @@ interface TabEvents {
   open(url: string): void
   /** The user right-clicked the page: the menu to show them. */
   contextMenu(menu: Menu): void
+  /** The page started a download, which waits for a path to save to. */
+  download(item: DownloadItem): void
 }
 
 let browserSession: Session | null = null
+/** Where the downloads of each tab's page go, by its WebContents id. */
+const downloadHandlers = new Map<number, (item: DownloadItem) => void>()
+/** Paths downloads in progress save to, which a new download does not take. */
+const savingPaths = new Set<string>()
 
 /** The profile every tab uses, set up once. */
 function profile(): Session {
@@ -60,10 +70,36 @@ function profile(): Session {
   const s = session.fromPartition(PARTITION)
   // The user agent stays Electron's. A Chrome one, on a browser that lacks Chrome's other
   // traits, fails bot checks such as Cloudflare's Turnstile (error 600010).
-  s.on('will-download', (event) => event.preventDefault())
+
+  // A tab's download goes to its browser; any other is refused.
+  s.on('will-download', (event, item, contents) => {
+    const handler = downloadHandlers.get(contents.id)
+    if (handler) handler(item)
+    else event.preventDefault()
+  })
   s.setPermissionRequestHandler((_wc, _permission, callback) => callback(false))
   browserSession = s
   return s
+}
+
+/** A path in the folder for the file that neither a file there nor a download in progress has: "report (1).pdf" after "report.pdf". */
+function freePath(dir: string, filename: string): string {
+  const name = basename(filename) || 'download'
+  const ext = extname(name)
+  const stem = name.slice(0, name.length - ext.length)
+  for (let i = 0; ; i++) {
+    const path = join(dir, i === 0 ? name : `${stem} (${i})${ext}`)
+    if (!existsSync(path) && !savingPaths.has(path)) return path
+  }
+}
+
+/** Marks a downloaded file as from the internet, as browsers do on macOS (Electron does not): Gatekeeper then checks an app or script in it before it first runs. */
+function quarantine(path: string): void {
+  if (process.platform !== 'darwin') return
+  const value = `0081;${Math.floor(Date.now() / 1000).toString(16)};Kumi Code;${randomUUID().toUpperCase()}`
+  execFile('xattr', ['-w', 'com.apple.quarantine', value, path], () => {
+    // A file gone meanwhile needs no mark.
+  })
 }
 
 function mobileUserAgent(): string {
@@ -110,6 +146,9 @@ export class BrowserTab {
       this.contextMenuUntil = 0
       this.events.contextMenu(this.contextMenu(params))
     })
+    const contentsId = wc.id
+    downloadHandlers.set(contentsId, (item) => this.events.download(item))
+    wc.once('destroyed', () => downloadHandlers.delete(contentsId))
     wc.on('paint', (_event, _dirty, image) => this.events.painted(this, image))
     for (const name of ['page-title-updated', 'did-navigate', 'did-navigate-in-page', 'did-start-loading', 'did-stop-loading'] as const) {
       wc.on(name as 'did-stop-loading', () => this.events.changed())
@@ -332,10 +371,18 @@ export class BrowserTab {
       items.push(...group)
     }
     if (params.linkURL) {
-      group({ label: 'Open Link in New Tab', click: () => this.events.open(params.linkURL) }, { label: 'Copy Link Address', click: () => clipboard.writeText(params.linkURL) })
+      group(
+        { label: 'Open Link in New Tab', click: () => this.events.open(params.linkURL) },
+        { label: 'Download Linked File', click: () => wc.downloadURL(params.linkURL) },
+        { label: 'Copy Link Address', click: () => clipboard.writeText(params.linkURL) },
+      )
     }
     if (params.mediaType === 'image' && params.srcURL) {
-      group({ label: 'Copy Image', click: () => wc.copyImageAt(params.x, params.y) }, { label: 'Copy Image Address', click: () => clipboard.writeText(params.srcURL) })
+      group(
+        { label: 'Download Image', click: () => wc.downloadURL(params.srcURL) },
+        { label: 'Copy Image', click: () => wc.copyImageAt(params.x, params.y) },
+        { label: 'Copy Image Address', click: () => clipboard.writeText(params.srcURL) },
+      )
     }
     const can = params.editFlags
     if (params.isEditable) {
@@ -434,6 +481,8 @@ export class Browser {
   private readonly tabs: BrowserTab[] = []
   private activeId: string | null = null
   private counter = 0
+  private readonly downloads: { info: BrowserDownload; item: DownloadItem }[] = []
+  private downloadCounter = 0
   private activity: string | null = null
   private watched = false
   /** Origins the user let the agent open, beyond local ones. */
@@ -445,7 +494,7 @@ export class Browser {
   constructor(private readonly events: BrowserEvents) {}
 
   state(): BrowserState {
-    return { tabs: this.tabs.map((t) => t.info()), activeTabId: this.activeId, activity: this.activity }
+    return { tabs: this.tabs.map((t) => t.info()), activeTabId: this.activeId, activity: this.activity, downloads: this.downloads.map((d) => ({ ...d.info })) }
   }
 
   list(): BrowserTab[] {
@@ -480,6 +529,7 @@ export class Browser {
         void this.create(true).then((opened) => opened.navigate(url))
       },
       contextMenu: (menu) => this.events.contextMenu(menu),
+      download: (item) => this.save(item),
     })
     this.tabs.push(tab)
     if (foreground || this.activeId === null) this.activeId = tab.id
@@ -504,6 +554,24 @@ export class Browser {
       this.activeId = this.tabs[Math.min(index, this.tabs.length - 1)]?.id ?? null
       this.sendCurrentFrame()
     }
+    this.changed()
+  }
+
+  downloadOf(id: string): BrowserDownload {
+    const download = this.downloads.find((d) => d.info.id === id)
+    if (!download) throw new Error(`No download ${id}`)
+    return { ...download.info }
+  }
+
+  cancelDownload(id: string): void {
+    this.downloads.find((d) => d.info.id === id)?.item.cancel()
+  }
+
+  /** Takes a download off the list; one in progress goes on. */
+  removeDownload(id: string): void {
+    const index = this.downloads.findIndex((d) => d.info.id === id)
+    if (index === -1) return
+    this.downloads.splice(index, 1)
     this.changed()
   }
 
@@ -535,6 +603,30 @@ export class Browser {
 
   private changed(): void {
     this.events.state(this.state())
+  }
+
+  /** Saves a page's download in the Downloads folder, as a browser does without asking. */
+  private save(item: DownloadItem): void {
+    const dir = app.getPath('downloads')
+    mkdirSync(dir, { recursive: true })
+    const path = freePath(dir, item.getFilename())
+    item.setSavePath(path)
+    savingPaths.add(path)
+    const info: BrowserDownload = { id: String(++this.downloadCounter), name: basename(path), path, state: 'progressing', receivedBytes: 0, totalBytes: item.getTotalBytes() }
+    const update = (): void => {
+      info.state = item.getState()
+      info.receivedBytes = item.getReceivedBytes()
+      info.totalBytes = item.getTotalBytes()
+      if (info.state !== 'progressing') savingPaths.delete(path)
+      this.changed()
+    }
+    item.on('updated', update)
+    item.on('done', () => {
+      if (item.getState() === 'completed') quarantine(path)
+      update()
+    })
+    this.downloads.push({ info, item })
+    this.changed()
   }
 
   private painted(tab: BrowserTab, image: NativeImage): void {

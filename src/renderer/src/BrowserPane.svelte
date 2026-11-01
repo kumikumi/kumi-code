@@ -1,9 +1,9 @@
 <!-- A conversation's browser: its tabs, the active tab's page drawn from the frames the main process sends, and the user's mouse and keyboard passed back. The page renders at its own viewport; the pane only scales it to fit, so its size changes nothing the page sees. -->
 <script lang="ts">
-  import type { BrowserAction, BrowserInput, BrowserState, Viewport } from '@shared/types'
+  import type { BrowserAction, BrowserDownload, BrowserInput, BrowserState, Viewport } from '@shared/types'
   import Icon from './Icon.svelte'
   import { api } from './state.svelte'
-  import { errorMessage } from './util'
+  import { errorMessage, fileSize } from './util'
 
   let { conversationId, browser, visible, onhide }: { conversationId: string; browser: BrowserState; visible: boolean; onhide: () => void } = $props()
 
@@ -151,6 +151,12 @@
     if (at) send({ type: 'wheel', x: at.x, y: at.y, deltaX: e.deltaX, deltaY: e.deltaY, modifiers: modifiersOf(e) })
   }
 
+  function downloadStatus(d: BrowserDownload): string {
+    if (d.state === 'progressing') return d.totalBytes > 0 ? `${fileSize(d.receivedBytes)} of ${fileSize(d.totalBytes)}` : fileSize(d.receivedBytes)
+    if (d.state === 'completed') return fileSize(d.receivedBytes)
+    return d.state === 'cancelled' ? 'Cancelled' : 'Failed'
+  }
+
   function key(e: KeyboardEvent, action: 'down' | 'up'): void {
     if (e.isComposing) return
     e.preventDefault()
@@ -244,4 +250,23 @@
       </div>
     {/if}
   </div>
+  {#if browser.downloads.length > 0}
+    <div class="browser-downloads" aria-label="Downloads">
+      {#each browser.downloads as download (download.id)}
+        <div class="browser-download">
+          <span class="browser-download-name" title={download.path}>{download.name}</span>
+          <span class="browser-download-status">{downloadStatus(download)}</span>
+          <span class="spacer"></span>
+          {#if download.state === 'progressing'}
+            <button class="ghost small" onclick={() => act({ kind: 'cancelDownload', downloadId: download.id })}>Cancel</button>
+          {:else}
+            {#if download.state === 'completed'}
+              <button class="ghost small" onclick={() => act({ kind: 'showDownload', downloadId: download.id })}>Show in Finder</button>
+            {/if}
+            <button class="ghost icon-button" aria-label="Remove from the list" title="Remove from the list" onclick={() => act({ kind: 'removeDownload', downloadId: download.id })}><Icon name="close" /></button>
+          {/if}
+        </div>
+      {/each}
+    </div>
+  {/if}
 </div>

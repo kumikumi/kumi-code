@@ -21,7 +21,7 @@
 
   /** Within this many pixels of the bottom, the transcript follows new output. */
   const STICK_DISTANCE = 80
-  const NO_BROWSER: BrowserState = { tabs: [], activeTabId: null, activity: null }
+  const NO_BROWSER: BrowserState = { tabs: [], activeTabId: null, activity: null, downloads: [] }
   const NO_TERMINALS: TerminalState = { tabs: [], activeTabId: null }
 
   // A tab's conversation never changes; App keys the component by it.

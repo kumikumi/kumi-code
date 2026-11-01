@@ -70,6 +70,19 @@ export function duration(ms: number): string {
   return `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m`
 }
 
+/** A byte count as Finder shows it, in powers of 1000: "512 B", "3.4 kB", "12 MB". */
+export function fileSize(bytes: number): string {
+  if (bytes < 1000) return `${bytes} B`
+  const units = ['kB', 'MB', 'GB', 'TB']
+  let value = bytes / 1000
+  let unit = 0
+  while (value >= 999.5 && unit < units.length - 1) {
+    value /= 1000
+    unit++
+  }
+  return `${value < 9.95 ? value.toFixed(1) : Math.round(value)} ${units[unit]}`
+}
+
 /** The start of the local calendar day `ts` is in. */
 export function startOfDay(ts: number): number {
   const d = new Date(ts)
