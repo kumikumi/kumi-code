@@ -47,7 +47,11 @@ input, select, textarea {
   border-radius: 6px; padding: 6px 9px;
 }
 input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
-select { padding: 4px 6px; }
+/* Our own chevron in place of the native arrow, which sits against the right edge: inset from it as far as the text is from the left. */
+select {
+  appearance: none; padding: 4px 24px 4px 8px; background-repeat: no-repeat; background-position: right 5px center; background-size: 16px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4.5 6.25 8 9.75l3.5-3.5' fill='none' stroke='%238e95a3' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
 code, pre { font-family: var(--mono); font-size: 12.5px; }
 .muted { color: var(--muted); }
 .mono { font-family: var(--mono); }
@@ -262,8 +266,8 @@ code, pre { font-family: var(--mono); font-size: 12.5px; }
 .composer textarea { width: 100%; border: 0; background: transparent; resize: none; padding: 4px 2px; font-size: 14px; line-height: 1.45; max-height: 40vh; }
 .composer textarea:focus { outline: none; }
 .composer-bar { display: flex; align-items: center; gap: 6px; margin-top: 4px; }
-.composer-bar select { background: transparent; border-color: transparent; color: var(--muted); font-size: 12px; }
-.composer-bar select:hover { background: var(--bg-input); color: var(--text); }
+.composer-bar select { background-color: transparent; border-color: transparent; color: var(--muted); font-size: 12px; }
+.composer-bar select:hover { background-color: var(--bg-input); color: var(--text); }
 .composer-bar select.mode.acceptEdits { color: var(--blue); }
 .composer-bar select.mode.plan { color: var(--green); }
 .composer-bar select.mode.auto { color: var(--yellow); }
@@ -403,8 +407,8 @@ button.pane-on { background: var(--bg-active); color: var(--text-strong); }
 .browser-bar .icon-button { width: 24px; height: 24px; }
 .browser-bar + .browser-bar { padding-top: 0; }
 .browser-url { font-size: 12px; padding: 4px 8px; }
-.browser-viewport select { font-size: 12px; padding: 2px 4px; }
-.viewport-size { width: 64px; font-size: 12px; padding: 3px 6px; }
+.browser-viewport select { font-size: 12px; padding-top: 3px; padding-bottom: 3px; }
+.viewport-size { width: 64px; font-size: 12px; padding: 3px 8px; }
 .browser-activity { flex: none; display: flex; align-items: center; gap: 8px; padding: 4px 12px; font-size: 12px; color: var(--text); background: var(--bg-raised); border-bottom: 1px solid var(--border); }
 .browser-activity-dot { display: inline-block; width: 7px; height: 7px; margin-left: 6px; border-radius: 50%; background: var(--accent); animation: pulse 1.2s ease-in-out infinite; }
 .browser-activity .browser-activity-dot { margin-left: 0; }
