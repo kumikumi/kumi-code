@@ -127,13 +127,17 @@
       {/if}
       <span class="project-label" title={meta.cwd}>{meta.project ?? 'No project'} <span class="muted">{tildify(meta.cwd)}</span></span>
       {#if renameError}<span class="notice error">{renameError}</span>{/if}
-      {#if review}<button class={['ghost small', pane === 'review' && 'pane-on']} onclick={() => toggle('review')}>Review</button>{/if}
-      <button class={['ghost small', pane === 'browser' && 'pane-on']} title="The conversation's browser" onclick={() => toggle('browser')}>
-        Browser{#if browser?.activity}<span class="browser-activity-dot"></span>{/if}
-      </button>
-      <button class={['ghost small', pane === 'terminal' && 'pane-on']} title="The conversation's terminal" onclick={() => toggle('terminal')}>
-        Terminal{#if c.terminals?.tabs.some((t) => t.running)}<span class="terminal-running"></span>{/if}
-      </button>
+      <div class="pane-toggles">
+        {#if review}<button class={['ghost small', pane === 'review' && 'pane-on']} onclick={() => toggle('review')}>Review</button>{/if}
+        <button class={['ghost icon-button', pane === 'browser' && 'pane-on']} aria-label="Browser" data-tip="Browser" onclick={() => toggle('browser')}>
+          <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.25" /><path d="M1.75 8h12.5M8 1.75c-1.7 1.7-2.5 3.8-2.5 6.25s.8 4.55 2.5 6.25M8 1.75c1.7 1.7 2.5 3.8 2.5 6.25s-.8 4.55-2.5 6.25" /></svg>
+          {#if browser?.activity}<span class="browser-activity-dot"></span>{/if}
+        </button>
+        <button class={['ghost icon-button', pane === 'terminal' && 'pane-on']} aria-label="Terminal" data-tip="Terminal" onclick={() => toggle('terminal')}>
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 4l4 4-4 4M8 12.5h5.5" /></svg>
+          {#if c.terminals?.tabs.some((t) => t.running)}<span class="terminal-running"></span>{/if}
+        </button>
+      </div>
     </header>
     <div class="conversation-body">
       <div class="conversation-main">

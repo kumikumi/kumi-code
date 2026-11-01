@@ -327,7 +327,7 @@ What the code does, precisely. `README.md` is the short version.
   `run_in_terminal`, `open_terminal_tab` and `send_to_terminal` go through the permission prompt,
   as Bash does, so the user approves the exact line, the folder, or the steps (shown one per
   line: type, press, wait).
-- The pane (the dock's third kind; *Terminal* in the header, 560 px by default, its width kept as
+- The pane (the dock's third kind; the header's terminal icon, 560 px by default, its width kept as
   `terminalPanelWidth`): tabs (a running dot, or a quicker accent dot while the agent types in it;
   close, new shell), and the active tab in xterm.js, with a *Claude is typing* badge over it
   (over, so the shell keeps its size) while the agent types in it. A
@@ -392,7 +392,8 @@ What the code does, precisely. `README.md` is the short version.
   still runs after 15 s, and reports which happened and whether the port is free. On quit
   (also on SIGTERM to Kumi Code) every server gets SIGTERM, without waiting.
 - The pane: the dock, beside the transcript, shows the review panel or the browser. The header's
-  *Review* and *Browser* buttons toggle it; it opens by itself for a new review and for a
+  *Review* button and its browser and terminal icons (labelled on hover, with a dot while the
+  browser works or a command runs) toggle it; it opens by itself for a new review and for a
   browser's first tab when it is closed. Its left edge resizes it (drag, or ← / → when focused; a
   double-click restores the default: 340 px for the review, 560 px for the browser), between a
   minimum (280 / 320 px) and the window's width less 400 px. Widths are kept per kind in the
