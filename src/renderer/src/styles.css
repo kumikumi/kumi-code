@@ -153,7 +153,8 @@ code, pre { font-family: var(--mono); font-size: 12.5px; }
 .empty { color: var(--faint); text-align: center; margin-top: 18vh; font-size: 16px; }
 .item { margin: 10px 0; }
 .item.user {
-  background: var(--bg-raised); border: 1px solid var(--border); border-radius: 10px; padding: 9px 13px; margin: 18px 0 12px;
+  width: fit-content; max-width: 80%; margin: 18px 0 12px auto;
+  background: var(--bg-raised); border: 1px solid var(--border); border-radius: 10px; padding: 9px 13px;
 }
 .item.user.queued { opacity: 0.6; border-style: dashed; }
 .user-text { white-space: pre-wrap; word-wrap: break-word; color: var(--text-strong); }
