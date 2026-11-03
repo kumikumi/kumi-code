@@ -4,6 +4,7 @@
   import { WRAP_UP_TOOL } from '@shared/wrap-up'
   import FindingsCard from './FindingsCard.svelte'
   import Icon from './Icon.svelte'
+  import Images from './Images.svelte'
   import Item from './Item.svelte'
   import RelayCard from './RelayCard.svelte'
   import Rich from './Rich.svelte'
@@ -45,11 +46,7 @@
   {@render sent(item.at)}
 {:else if item.kind === 'user'}
   <div class={['item user', item.queued && 'queued']}>
-    {#if item.images.length > 0}
-      <div class="images">
-        {#each item.images as img, i (i)}<img src="data:{img.mediaType};base64,{img.data}" alt="" />{/each}
-      </div>
-    {/if}
+    {#if item.images.length > 0}<Images images={item.images} />{/if}
     {#if item.text}<div class="user-text">{item.text}</div>{/if}
     {#if item.queued}<div class="queued-label">Queued</div>{/if}
   </div>
@@ -120,12 +117,12 @@
         {:else if tool.result}
           {@const { text, images, isError } = tool.result}
           <div class={['tool-output', isError && 'error']}>
-            {#if !text && images === 0}<div class="tool-empty">(no output)</div>{/if}
+            {#if !text && images.length === 0}<div class="tool-empty">(no output)</div>{/if}
             {#if text}<pre class="tool-text">{full || text.length <= PREVIEW ? text : `${text.slice(0, PREVIEW)}…`}</pre>{/if}
             {#if !full && text.length > PREVIEW}
               <button class="ghost small" onclick={() => (full = true)}>Show all {text.length.toLocaleString()} characters</button>
             {/if}
-            {#if images > 0}<div class="tool-empty">{images === 1 ? '1 image' : `${images} images`}</div>{/if}
+            {#if images.length > 0}<Images {images} path={tool.name === 'Read' ? str(tool.input.file_path) || null : null} />{/if}
           </div>
         {/if}
       </div>

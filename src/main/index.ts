@@ -5,8 +5,9 @@ import { getAuthStatus } from '../core/auth'
 import { listConversations, recentProjects } from '../core/sessions'
 import { Store } from '../core/store'
 import { IPC } from '@shared/types'
-import type { BrowserAction, BrowserInput, EffortLevel, ImageData, PermissionMode, RequestResponse, TabStripGeometry, TerminalAction } from '@shared/types'
+import type { BrowserAction, BrowserInput, EffortLevel, ImageData, ImageMenuTarget, PermissionMode, RequestResponse, TabStripGeometry, TerminalAction } from '@shared/types'
 import { TabDrag } from './drag'
+import { popupImageMenu } from './image-menu'
 import { Workspace } from './workspace'
 
 // A separate state directory, for running a second instance in development.
@@ -65,6 +66,7 @@ app.whenReady().then(() => {
   ipcMain.handle(IPC.setPermissionMode, (_e, id: string, mode: PermissionMode) => workspace.conversation(id).setPermissionMode(mode))
   ipcMain.on(IPC.setDraft, (_e, id: string, draft: string) => workspace.conversation(id).setDraft(draft))
   ipcMain.handle(IPC.showConversation, (e, id: string) => workspace.showConversation(win(e), id))
+  ipcMain.on(IPC.imageMenu, (e, target: ImageMenuTarget) => popupImageMenu(win(e).win, target))
 
   ipcMain.handle(IPC.listReviews, () => workspace.reviewList())
   ipcMain.handle(IPC.startReview, (_e, reviewerId: string, toolUseId: string, implementerId: string) => workspace.startReview(reviewerId, toolUseId, implementerId))

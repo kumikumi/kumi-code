@@ -39,8 +39,31 @@ describe('TranscriptBuilder', () => {
     t.applyAssistant({ id: 'm1', content: [{ type: 'tool_use', id: 'tu1', name: 'Bash', input: { command: 'ls' } }] }, null)
     t.applyToolResults({ content: [{ type: 'tool_result', tool_use_id: 'tu1', content: [{ type: 'text', text: 'a\nb' }] }] })
     expect(t.items).toEqual([
-      { kind: 'tool', id: 'tu1', name: 'Bash', input: { command: 'ls' }, partialInput: null, result: { text: 'a\nb', isError: false, images: 0 }, children: [] },
+      { kind: 'tool', id: 'tu1', name: 'Bash', input: { command: 'ls' }, partialInput: null, result: { text: 'a\nb', isError: false, images: [] }, children: [] },
     ])
+  })
+
+  it("shows a sent message's images as Claude Code echoes them", () => {
+    const t = new TranscriptBuilder()
+    t.addUser('u1', 'look', [{ mediaType: 'image/png', data: 'original' }], false, 1)
+    t.takeChanges()
+    const scaled = { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: 'scaled' } }
+    t.applyEcho('u1', { content: [scaled, { type: 'text', text: 'look' }] })
+    expect(t.items[0]).toMatchObject({ kind: 'user', text: 'look', images: [{ mediaType: 'image/jpeg', data: 'scaled' }] })
+    expect(t.takeChanges().map((i) => i.id)).toEqual(['u1'])
+    // An echo of a message without images changes nothing.
+    t.addUser('u2', 'hi', [], false, 2)
+    t.takeChanges()
+    t.applyEcho('u2', { content: 'hi' })
+    expect(t.takeChanges()).toEqual([])
+  })
+
+  it('keeps the images of a tool result', () => {
+    const t = new TranscriptBuilder()
+    t.applyAssistant({ id: 'm1', content: [{ type: 'tool_use', id: 'read', name: 'Read', input: { file_path: '/a.png' } }] }, null)
+    const image = { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'iVBOR' } }
+    t.applyToolResults({ content: [{ type: 'tool_result', tool_use_id: 'read', content: [image] }] })
+    expect(t.items[0]).toMatchObject({ result: { text: '', images: [{ mediaType: 'image/png', data: 'iVBOR' }] } })
   })
 
   it('nests what a subagent does under the tool that started it', () => {

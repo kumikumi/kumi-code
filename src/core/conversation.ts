@@ -323,6 +323,8 @@ export class Conversation {
       mcpServers: this.access.mcpServers(),
       allowedTools: this.access.allowedTools,
       includePartialMessages: true,
+      // Claude Code echoes each message sent with images as it keeps them, which the transcript shows.
+      extraArgs: { 'replay-user-messages': null },
       thinking: { type: 'adaptive', display: 'summarized' },
       env: agentEnvironment(),
       // Kumi Code starts the process itself to know when it has exited.
@@ -410,6 +412,11 @@ export class Conversation {
         this.scheduleFlush()
         return
       case 'user': {
+        if ('isReplay' in msg && msg.isReplay) {
+          this.transcript.applyEcho(msg.uuid, msg.message)
+          this.scheduleFlush()
+          return
+        }
         const finished = this.transcript.applyToolResults(msg.message, msg.tool_use_result)
         if (finished.length > 0 && msg.parent_tool_use_id === null && msg.uuid) this.transcript.touchTurn(Date.now(), msg.uuid)
         for (const tool of finished) {

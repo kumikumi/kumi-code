@@ -52,7 +52,16 @@ export interface ImageData {
 export interface ToolResult {
   text: string
   isError: boolean
-  images: number
+  images: ImageData[]
+}
+
+/** A right-clicked image in the transcript. */
+export interface ImageMenuTarget {
+  image: ImageData
+  /** The image as base64 PNG for the clipboard, when its own format is neither PNG nor JPEG; else null. */
+  png: string | null
+  /** The file it was read from; null when it came from none. */
+  path: string | null
 }
 
 export type TranscriptItem =
@@ -411,6 +420,7 @@ export const IPC = {
   setPermissionMode: 'conversation:set-permission-mode',
   setDraft: 'conversation:set-draft',
   showConversation: 'conversation:show',
+  imageMenu: 'image:menu',
   listReviews: 'review:list',
   startReview: 'review:start',
   relayFinding: 'review:relay',
@@ -484,6 +494,8 @@ export interface KumiApi {
   setDraft(conversationId: string, draft: string): void
   /** Switches to the conversation's tab, or opens it in a new tab of this window. */
   showConversation(conversationId: string): Promise<void>
+  /** Pops up the menu of a transcript image: copy it, save it, show its file. */
+  imageMenu(target: ImageMenuTarget): void
   listReviews(): Promise<Review[]>
   /**
    * Links the findings of a ReportFindings call in `reviewerId` to the

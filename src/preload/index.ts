@@ -37,6 +37,7 @@ const api: KumiApi = {
   setPermissionMode: (id, mode) => ipcRenderer.invoke(IPC.setPermissionMode, id, mode),
   setDraft: (id, draft) => ipcRenderer.send(IPC.setDraft, id, draft),
   showConversation: (id) => ipcRenderer.invoke(IPC.showConversation, id),
+  imageMenu: (target) => ipcRenderer.send(IPC.imageMenu, target),
   listReviews: () => ipcRenderer.invoke(IPC.listReviews),
   startReview: (reviewerId, toolUseId, implementerId) => ipcRenderer.invoke(IPC.startReview, reviewerId, toolUseId, implementerId),
   relayFinding: (reviewId, rank, note) => ipcRenderer.invoke(IPC.relayFinding, reviewId, rank, note),

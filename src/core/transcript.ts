@@ -127,6 +127,19 @@ export class TranscriptBuilder {
     return tool && { name: tool.name, input: tool.input }
   }
 
+  /**
+   * Claude Code's echo of a message the user sent, with its images as the conversation keeps
+   * them: a large one scaled down, maybe re-encoded as JPEG. They replace the ones sent.
+   */
+  applyEcho(id: string, raw: unknown): void {
+    const item = this.items.find((i) => i.kind === 'user' && i.id === id)
+    const content = (raw as ApiMessage).content
+    const images = Array.isArray(content) ? content.flatMap((b) => imageOf(b)) : []
+    if (item?.kind !== 'user' || (images.length === 0 && item.images.length === 0)) return
+    item.images = images
+    this.touch(item)
+  }
+
   markDelivered(ids: Iterable<string>): void {
     const wanted = new Set(ids)
     for (const item of this.items) {
@@ -441,7 +454,7 @@ export function classifyStoredUserText(raw: string): StoredUserText {
 
 function toolResult(block: Block): ToolResult {
   const content = block.content
-  if (typeof content === 'string') return { text: content, isError: block.is_error === true, images: 0 }
+  if (typeof content === 'string') return { text: content, isError: block.is_error === true, images: [] }
   const parts = Array.isArray(content) ? (content as Block[]) : []
   return {
     text: parts
@@ -449,7 +462,7 @@ function toolResult(block: Block): ToolResult {
       .map((p) => p.text ?? '')
       .join('\n'),
     isError: block.is_error === true,
-    images: parts.filter((p) => p.type === 'image').length,
+    images: parts.flatMap((p) => imageOf(p)),
   }
 }
 
