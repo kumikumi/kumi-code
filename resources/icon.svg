@@ -1,0 +1,110 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <!-- Apple's 824 px icon body on a 1024 px canvas, as a superellipse with exponent 5. -->
+    <path id="squircle" d="M924 512L923.9 619.7L923.6 654L923.1 679L922.4 699.2L921.5 716.5L920.4 731.8L919.1 745.5L917.5 758.1L915.8 769.6L913.9 780.2L911.7 790.2L909.4 799.5L906.8 808.2L904 816.5L901 824.2L897.7 831.6L894.2 838.5L890.5 845.1L886.6 851.3L882.3 857.2L877.9 862.8L873.1 868.1L868.1 873.1L862.8 877.9L857.2 882.3L851.3 886.6L845.1 890.5L838.5 894.2L831.6 897.7L824.2 901L816.5 904L808.2 906.8L799.5 909.4L790.2 911.7L780.2 913.9L769.6 915.8L758.1 917.5L745.5 919.1L731.8 920.4L716.5 921.5L699.2 922.4L679 923.1L654 923.6L619.7 923.9L512 924L404.3 923.9L370 923.6L345 923.1L324.8 922.4L307.5 921.5L292.2 920.4L278.5 919.1L265.9 917.5L254.4 915.8L243.8 913.9L233.8 911.7L224.5 909.4L215.8 906.8L207.5 904L199.8 901L192.4 897.7L185.5 894.2L178.9 890.5L172.7 886.6L166.8 882.3L161.2 877.9L155.9 873.1L150.9 868.1L146.1 862.8L141.7 857.2L137.4 851.3L133.5 845.1L129.8 838.5L126.3 831.6L123 824.2L120 816.5L117.2 808.2L114.6 799.5L112.3 790.2L110.1 780.2L108.2 769.6L106.5 758.1L104.9 745.5L103.6 731.8L102.5 716.5L101.6 699.2L100.9 679L100.4 654L100.1 619.7L100 512L100.1 404.3L100.4 370L100.9 345L101.6 324.8L102.5 307.5L103.6 292.2L104.9 278.5L106.5 265.9L108.2 254.4L110.1 243.8L112.3 233.8L114.6 224.5L117.2 215.8L120 207.5L123 199.8L126.3 192.4L129.8 185.5L133.5 178.9L137.4 172.7L141.7 166.8L146.1 161.2L150.9 155.9L155.9 150.9L161.2 146.1L166.8 141.7L172.7 137.4L178.9 133.5L185.5 129.8L192.4 126.3L199.8 123L207.5 120L215.8 117.2L224.5 114.6L233.8 112.3L243.8 110.1L254.4 108.2L265.9 106.5L278.5 104.9L292.2 103.6L307.5 102.5L324.8 101.6L345 100.9L370 100.4L404.3 100.1L512 100L619.7 100.1L654 100.4L679 100.9L699.2 101.6L716.5 102.5L731.8 103.6L745.5 104.9L758.1 106.5L769.6 108.2L780.2 110.1L790.2 112.3L799.5 114.6L808.2 117.2L816.5 120L824.2 123L831.6 126.3L838.5 129.8L845.1 133.5L851.3 137.4L857.2 141.7L862.8 146.1L868.1 150.9L873.1 155.9L877.9 161.2L882.3 166.8L886.6 172.7L890.5 178.9L894.2 185.5L897.7 192.4L901 199.8L904 207.5L906.8 215.8L909.4 224.5L911.7 233.8L913.9 243.8L915.8 254.4L917.5 265.9L919.1 278.5L920.4 292.2L921.5 307.5L922.4 324.8L923.1 345L923.6 370L923.9 404.3Z"/>
+    <path id="body" d="M 236 452 C 270 490 340 524 420 524 C 460 524 484 500 500 470 L 700 470 C 770 480 826 550 820 634 C 814 726 730 790 600 792 L 410 792 C 300 792 246 722 240 640 C 236 580 226 506 236 452 Z"/>
+    <clipPath id="clip"><use href="#squircle"/></clipPath>
+    <linearGradient id="bg" x1="0" y1="100" x2="0" y2="924" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#3B4CB0"/>
+      <stop offset="1" stop-color="#171D50"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="500" cy="470" r="420" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#6F86FF" stop-opacity="0.45"/>
+      <stop offset="1" stop-color="#6F86FF" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="water" x1="0" y1="742" x2="0" y2="924" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#1B2258" stop-opacity="0"/>
+      <stop offset="0.12" stop-color="#1B2258" stop-opacity="0.94"/>
+      <stop offset="1" stop-color="#11163E"/>
+    </linearGradient>
+    <radialGradient id="rubber" cx="470" cy="380" r="470" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFF27E"/>
+      <stop offset="0.45" stop-color="#FFD320"/>
+      <stop offset="0.85" stop-color="#FFB000"/>
+      <stop offset="1" stop-color="#F08C00"/>
+    </radialGradient>
+    <linearGradient id="belly" x1="0" y1="600" x2="0" y2="790" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#D95F00" stop-opacity="0"/>
+      <stop offset="1" stop-color="#D95F00" stop-opacity="0.45"/>
+    </linearGradient>
+    <linearGradient id="wing" x1="0" y1="560" x2="0" y2="700" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFC71C"/>
+      <stop offset="1" stop-color="#F29A00"/>
+    </linearGradient>
+    <linearGradient id="beak" x1="0" y1="364" x2="0" y2="456" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFA24A"/>
+      <stop offset="1" stop-color="#F0560A"/>
+    </linearGradient>
+    <linearGradient id="sheen" x1="0" y1="100" x2="0" y2="520" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.16"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="blur" x="-30%" y="-80%" width="160%" height="260%"><feGaussianBlur stdDeviation="22"/></filter>
+    <filter id="soft" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="4"/></filter>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="125%">
+      <feDropShadow dx="0" dy="10" stdDeviation="12" flood-color="#000" flood-opacity="0.32"/>
+    </filter>
+    <filter id="duckShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="14" stdDeviation="16" flood-color="#0A0E2E" flood-opacity="0.45"/>
+    </filter>
+  </defs>
+
+  <use href="#squircle" fill="url(#bg)" filter="url(#shadow)"/>
+  <g clip-path="url(#clip)">
+    <rect width="1024" height="1024" fill="url(#glow)"/>
+    <rect width="1024" height="1024" fill="url(#sheen)"/>
+
+    <!-- speech bubble -->
+    <g filter="url(#duckShadow)">
+      <path d="M 726 168 H 828 A 40 40 0 0 1 868 208 V 262 A 40 40 0 0 1 828 302 H 790 L 748 336 L 754 302 H 726 A 40 40 0 0 1 686 262 V 208 A 40 40 0 0 1 726 168 Z" fill="#FFFFFF"/>
+    </g>
+    <g fill="none" stroke="#3B4CB0" stroke-width="14" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M 744 212 L 718 235 L 744 258"/>
+      <path d="M 810 212 L 836 235 L 810 258"/>
+      <path d="M 788 204 L 766 266"/>
+    </g>
+
+    <!-- duck -->
+    <g transform="translate(-34 0)">
+      <g filter="url(#duckShadow)">
+        <g fill="url(#rubber)">
+          <use href="#body"/>
+          <circle cx="590" cy="372" r="128"/>
+        </g>
+      </g>
+      <use href="#body" fill="url(#belly)"/>
+      <path d="M 352 586 C 430 560 560 548 640 588 C 690 614 676 686 590 698 C 500 710 410 660 352 586 Z" fill="url(#wing)"/>
+      <path d="M 372 588 C 450 566 560 558 630 594" fill="none" stroke="#FFEB8A" stroke-width="7" stroke-linecap="round" opacity="0.8"/>
+      <path d="M 700 420 C 744 428 806 430 842 420 C 850 438 828 456 792 460 C 752 464 716 452 698 436 Z" fill="#E2520A"/>
+      <path d="M 688 384 C 736 354 816 356 854 388 C 870 402 862 420 842 422 C 800 428 740 424 698 416 Z" fill="url(#beak)"/>
+      <path d="M 712 376 C 752 362 806 364 836 384" fill="none" stroke="#FFC98F" stroke-width="7" stroke-linecap="round" opacity="0.7"/>
+      <ellipse cx="626" cy="404" rx="26" ry="15" fill="#FF7A45" opacity="0.35"/>
+      <circle cx="630" cy="334" r="24" fill="#1A1E3F"/>
+      <circle cx="639" cy="325" r="8.5" fill="#FFFFFF"/>
+      <circle cx="622" cy="343" r="3.5" fill="#FFFFFF" opacity="0.7"/>
+      <ellipse cx="538" cy="292" rx="46" ry="24" transform="rotate(-30 538 292)" fill="#FFFFFF" opacity="0.75" filter="url(#soft)"/>
+      <ellipse cx="320" cy="540" rx="48" ry="16" transform="rotate(28 320 540)" fill="#FFFFFF" opacity="0.45" filter="url(#soft)"/>
+    </g>
+
+    <!-- code, as water -->
+    <rect y="742" width="1024" height="282" fill="url(#water)"/>
+    <path d="M 196 760 C 330 750 650 750 800 760" fill="none" stroke="#B9C6FF" stroke-opacity="0.45" stroke-width="5" stroke-linecap="round"/>
+    <g stroke-width="24" stroke-linecap="round">
+      <path d="M 160 796 H 250" stroke="#C099FF"/>
+      <path d="M 292 796 H 470" stroke="#82AAFF"/>
+      <path d="M 512 796 H 596" stroke="#FF966C"/>
+      <path d="M 638 796 H 860" stroke="#86E1FC"/>
+      <g opacity="0.8">
+        <path d="M 230 846 H 330" stroke="#82AAFF"/>
+        <path d="M 372 846 H 560" stroke="#C3E88D"/>
+        <path d="M 602 846 H 760" stroke="#FCA7EA"/>
+      </g>
+      <g opacity="0.6">
+        <path d="M 300 896 H 380" stroke="#C099FF"/>
+        <path d="M 422 896 H 640" stroke="#86E1FC"/>
+      </g>
+    </g>
+    <ellipse cx="490" cy="812" rx="300" ry="56" fill="#FFD320" opacity="0.28" filter="url(#blur)" style="mix-blend-mode:screen"/>
+  </g>
+  <use href="#squircle" fill="none" stroke="#FFFFFF" stroke-opacity="0.14" stroke-width="3"/>
+</svg>

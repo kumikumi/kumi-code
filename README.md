@@ -61,6 +61,10 @@ bun install
 bun run dev
 ```
 
+`bun install` also names the development Electron app Kumi Code (in the Dock, the menu bar and the
+app switcher) and gives it the icon drawn in `resources/icon.svg`; after editing the icon,
+`bun run icon` renders `resources/icon.icns` and `bun install` puts it on the app.
+
 `bun run typecheck` checks the main-process and renderer projects; `bun run test` runs the unit
 tests; `bun run e2e` builds the app (with an unminified UI, `--mode e2e`) and drives it with Playwright (it opens real windows, sends
 a few short messages to Claude Haiku on your subscription, and never touches the real mouse).

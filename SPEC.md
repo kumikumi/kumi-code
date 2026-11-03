@@ -37,6 +37,12 @@ What the code does, precisely. `README.md` is the short version.
   the transcript), `BrowserPane.svelte`, `TerminalPane.svelte`, `NextStep.svelte`, `Icon.svelte` (line
   icons); `state.svelte.ts`
   (window and conversation state), `markdown.ts`, `tools.ts`, `util.ts`.
+- `resources/icon.svg` — the app icon; `scripts/icon.mjs` renders it in Electron into
+  `resources/icon.icns`. `scripts/brand-electron.mjs`, run by `postinstall` on macOS, renames the
+  development `Electron.app` to `Kumi Code.app` (the Dock titles a running app after its bundle's
+  folder name), sets its `CFBundleName` and `CFBundleDisplayName` to Kumi Code, swaps in the icon
+  and points `node_modules/electron/path.txt`, where `electron` and electron-vite look for the
+  executable, at it.
 
 ## Auth
 
