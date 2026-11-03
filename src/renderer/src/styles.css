@@ -72,6 +72,12 @@ code, pre { font-family: var(--mono); font-size: 12.5px; }
   border-radius: 8px 8px 0 0; color: var(--muted); cursor: default; font-size: 12.5px;
   transition: transform 120ms ease;
 }
+/* Dividers sit in the 1px gap between tabs and give way next to any tab with a background of its own. */
+.tab + .tab::before {
+  content: ''; position: absolute; left: -1px; top: 8px; bottom: 7px; width: 1px; background: var(--border); pointer-events: none;
+}
+.tab:is(.active, :hover, .dragging, .placeholder)::before,
+.tab:is(.active, :hover, .dragging, .placeholder) + .tab::before { display: none; }
 .tab:hover { background: #1f2229; color: var(--text); }
 .tab.active { background: var(--bg); color: var(--text-strong); }
 .tab.dragging { transition: none; z-index: 2; background: var(--bg-raised); box-shadow: 0 0 8px rgba(0, 0, 0, 0.4); }
