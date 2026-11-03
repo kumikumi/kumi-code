@@ -127,7 +127,6 @@ export class TranscriptBuilder {
     return tool && { name: tool.name, input: tool.input }
   }
 
-  /** Marks queued user messages as delivered. */
   markDelivered(ids: Iterable<string>): void {
     const wanted = new Set(ids)
     for (const item of this.items) {

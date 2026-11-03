@@ -84,7 +84,6 @@ export class Workspace {
   private readonly revs = new Map<string, number>()
   private readonly closedConversations: string[] = []
   private readonly reviews: Reviews
-  /** Each open conversation's review roles, as its MCP servers last got them. */
   /** Each open conversation's last status, to see its turns end. */
   private readonly lastStatus = new Map<string, ConversationStatus>()
   private readonly browsers = new Map<string, Browser>()
@@ -554,7 +553,6 @@ export class Workspace {
     }
   }
 
-  /** The user's mouse and keyboard on a tab. */
   browserInput(id: string, tabId: string, input: BrowserInput): void {
     const tab = this.browsers.get(id)?.list().find((t) => t.id === tabId)
     if (!tab) return
@@ -608,7 +606,6 @@ export class Workspace {
     return this.terminalOf(id).tab(tabId).snapshot()
   }
 
-  /** The user's typing. */
   terminalInput(id: string, tabId: string, data: string): void {
     this.terminals.get(id)?.list().find((t) => t.id === tabId)?.write(data)
   }

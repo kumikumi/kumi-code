@@ -42,7 +42,6 @@
     height = String(viewport?.height ?? '')
   })
 
-  // Frames come only while the pane shows.
   $effect(() => {
     if (!visible) return
     api.watchBrowser(conversationId, true)
@@ -226,7 +225,6 @@
   {#if error}<div class="notice error browser-error">{error}</div>{/if}
   <div class="browser-view">
     {#if active}
-      <!-- The canvas is the page: it takes the user's mouse and keyboard and passes them on. -->
       <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
       <canvas
         bind:this={canvas}

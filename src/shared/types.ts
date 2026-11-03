@@ -234,7 +234,6 @@ export interface TerminalTabInfo {
   /** A command runs in it; null when that cannot be told. */
   running: boolean | null
   exited: boolean
-  /** The agent is typing in it. */
   agentTyping: boolean
 }
 

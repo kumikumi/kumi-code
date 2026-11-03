@@ -193,7 +193,6 @@ export class Conversation {
     await this.deliver(text, [])
   }
 
-  /** The name and input of a tool call in the transcript. */
   toolInput(id: string): { name: string; input: Record<string, unknown> } | undefined {
     return this.transcript.toolInput(id)
   }

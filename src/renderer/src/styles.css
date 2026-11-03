@@ -172,9 +172,7 @@ code, pre { font-family: var(--mono); font-size: 12.5px; }
 }
 @keyframes pulse { 50% { opacity: 0.3; } }
 .status-line .elapsed { margin-left: 8px; color: var(--faint); font-variant-numeric: tabular-nums; }
-/* When a message was sent: under its bubble, at its right edge. */
 .message-time { display: block; margin: -8px 4px 12px; text-align: right; font-size: 11px; color: var(--faint); font-variant-numeric: tabular-nums; }
-/* The end of a turn: how long it took and when it finished, at the right edge like the messages' times, and a fork from there on hover. */
 .item.turn-end { display: flex; align-items: center; justify-content: flex-end; gap: 10px; min-height: 22px; margin: 6px 4px 14px; font-size: 11px; color: var(--faint); font-variant-numeric: tabular-nums; }
 .turn-dot { margin: 0 6px; }
 .turn-fork { display: inline-flex; align-items: center; gap: 5px; padding: 1px 7px; font-size: 11.5px; color: var(--muted); visibility: hidden; }
@@ -403,7 +401,6 @@ button.pane-on { background: var(--bg-active); color: var(--text-strong); }
 
 /* ---- browser ---- */
 .browser-pane { flex: 1; min-height: 0; display: flex; flex-direction: column; }
-/* Tabs and the buttons beside them share one center line, so each has the same space above and below. */
 .browser-tabs { flex: none; display: flex; align-items: center; gap: 2px; height: 36px; padding: 0 6px 0 8px; min-width: 0; }
 .browser-tabs .icon-button { width: 26px; height: 26px; }
 .browser-tab { display: flex; align-items: center; height: 26px; min-width: 0; max-width: 180px; border-radius: 6px; }
@@ -432,7 +429,7 @@ button.pane-on { background: var(--bg-active); color: var(--text-strong); }
 .browser-view { flex: 1; min-height: 0; position: relative; display: flex; flex-direction: column; background: #0f1115; }
 .browser-view canvas { position: absolute; inset: 0; margin: auto; max-width: 100%; max-height: 100%; background: #fff; outline: none; }
 .browser-view canvas:focus { box-shadow: 0 0 0 1px var(--faint); }
-/* What the browser or terminal pane shows with no tab: on the pane's surface, in the header's sizes and colors. */
+/* What the browser or terminal pane shows with no tab. */
 .browser-empty {
   flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 24px 24px 12vh;
   background: var(--bg); color: var(--muted); font-size: 12px; text-align: center;

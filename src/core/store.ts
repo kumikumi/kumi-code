@@ -35,7 +35,6 @@ export interface StoredConversation {
   model: string | null
   effort: EffortLevel | null
   permissionMode: PermissionMode
-  /** Set when the conversation is a fork of another. */
   forkedFrom?: ForkOrigin
 }
 

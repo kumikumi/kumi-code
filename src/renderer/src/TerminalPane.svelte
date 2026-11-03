@@ -27,7 +27,6 @@
     api.terminalAction(conversationId, action).catch((err: unknown) => (error = errorMessage(err)))
   }
 
-  // Output comes only while the pane shows.
   $effect(() => {
     if (!visible) return
     api.watchTerminals(conversationId, true)

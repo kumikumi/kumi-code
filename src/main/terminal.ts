@@ -74,9 +74,7 @@ export class TerminalTab {
   exited = false
   /** The user typed in it, so the agent no longer stops or closes it. */
   userTyped = false
-  /** When the user last typed in it. */
   userTypedAt = 0
-  /** The agent is typing in it. */
   agentTyping = false
 
   constructor(

@@ -23,7 +23,6 @@ export interface TerminalToolContext {
   /** The conversation's terminals, created on first use. */
   terminals(): Terminals
   existing(): Terminals | null
-  /** The conversation's folder. */
   cwd: string
   /** Shows the user's terminal pane at a tab. */
   show(tabId: string): void

@@ -7,7 +7,6 @@
 import { ALT, CTRL, META, parseModifiers, SHIFT } from './keys'
 
 const ESC = '\x1b'
-/** The longest wait step. */
 export const MAX_WAIT_MS = 60_000
 
 export type InputStep = { kind: 'text'; text: string } | { kind: 'keys'; keys: string } | { kind: 'wait'; ms: number }
