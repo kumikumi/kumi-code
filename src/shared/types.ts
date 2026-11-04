@@ -1,6 +1,8 @@
 // Types shared by the main process, the preload bridge and the renderer. Everything
 // here crosses IPC, so it is plain data.
 
+import type { ThemeId } from './themes'
+
 export type EffortLevel = 'low' | 'medium' | 'high' | 'xhigh' | 'max'
 
 /** The permission modes the UI offers. `auto` only when the model supports it. */
@@ -369,6 +371,8 @@ export interface TabInfo {
   conversationId: string | null
   title: string
   status: TabStatus
+  /** The conversation's color theme; the default for a new tab page. */
+  theme: ThemeId
 }
 
 export interface WindowState {
@@ -418,6 +422,7 @@ export const IPC = {
   setModel: 'conversation:set-model',
   setEffort: 'conversation:set-effort',
   setPermissionMode: 'conversation:set-permission-mode',
+  setTheme: 'conversation:set-theme',
   setDraft: 'conversation:set-draft',
   showConversation: 'conversation:show',
   imageMenu: 'image:menu',
@@ -491,6 +496,7 @@ export interface KumiApi {
   setModel(conversationId: string, model: string): Promise<void>
   setEffort(conversationId: string, effort: EffortLevel): Promise<void>
   setPermissionMode(conversationId: string, mode: PermissionMode): Promise<void>
+  setTheme(conversationId: string, theme: ThemeId): Promise<void>
   setDraft(conversationId: string, draft: string): void
   /** Switches to the conversation's tab, or opens it in a new tab of this window. */
   showConversation(conversationId: string): Promise<void>

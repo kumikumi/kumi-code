@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { getAuthStatus } from '../core/auth'
 import { listConversations, recentProjects } from '../core/sessions'
 import { Store } from '../core/store'
+import type { ThemeId } from '@shared/themes'
 import { IPC } from '@shared/types'
 import type { BrowserAction, BrowserInput, EffortLevel, ImageData, ImageMenuTarget, PermissionMode, RequestResponse, TabStripGeometry, TerminalAction } from '@shared/types'
 import { TabDrag } from './drag'
@@ -64,6 +65,7 @@ app.whenReady().then(() => {
   ipcMain.handle(IPC.setModel, (_e, id: string, model: string) => workspace.conversation(id).setModel(model))
   ipcMain.handle(IPC.setEffort, (_e, id: string, effort: EffortLevel) => workspace.conversation(id).setEffort(effort))
   ipcMain.handle(IPC.setPermissionMode, (_e, id: string, mode: PermissionMode) => workspace.conversation(id).setPermissionMode(mode))
+  ipcMain.handle(IPC.setTheme, (_e, id: string, theme: ThemeId) => workspace.setTheme(id, theme))
   ipcMain.on(IPC.setDraft, (_e, id: string, draft: string) => workspace.conversation(id).setDraft(draft))
   ipcMain.handle(IPC.showConversation, (e, id: string) => workspace.showConversation(win(e), id))
   ipcMain.on(IPC.imageMenu, (e, target: ImageMenuTarget) => popupImageMenu(win(e).win, target))

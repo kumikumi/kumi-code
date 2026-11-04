@@ -7,6 +7,7 @@
 
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
+import type { ThemeId } from '@shared/themes'
 import type { EffortLevel, PermissionMode, Review } from '@shared/types'
 import type { ForkOrigin } from './transcript'
 
@@ -36,6 +37,8 @@ export interface StoredConversation {
   effort: EffortLevel | null
   permissionMode: PermissionMode
   forkedFrom?: ForkOrigin
+  /** Absent: the default theme. New conversations get one; older ones and sessions opened from elsewhere have none until picked. */
+  theme?: ThemeId
 }
 
 export interface StoredState {

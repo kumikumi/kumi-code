@@ -2,13 +2,15 @@
 <script lang="ts">
   import { FitAddon } from '@xterm/addon-fit'
   import { Terminal } from '@xterm/xterm'
+  import type { ITheme } from '@xterm/xterm'
   import '@xterm/xterm/css/xterm.css'
+  import type { ThemeId } from '@shared/themes'
   import type { TerminalAction, TerminalState } from '@shared/types'
   import Icon from './Icon.svelte'
   import { api } from './state.svelte'
   import { errorMessage } from './util'
 
-  let { conversationId, terminals, visible, onhide }: { conversationId: string; terminals: TerminalState; visible: boolean; onhide: () => void } = $props()
+  let { conversationId, terminals, theme, visible, onhide }: { conversationId: string; terminals: TerminalState; theme: ThemeId; visible: boolean; onhide: () => void } = $props()
 
   const activeId = $derived(terminals.activeTabId)
   const activeTab = $derived(terminals.tabs.find((t) => t.id === activeId))
@@ -21,6 +23,13 @@
   let lastSeq = 0
   /** Output that arrived while the snapshot loaded. */
   let pending: { data: string; seq: number }[] | null = null
+
+  /** The terminal's colors, from the conversation's theme. */
+  function colors(el: HTMLElement): ITheme {
+    const style = getComputedStyle(el)
+    const color = (name: string): string => style.getPropertyValue(name).trim()
+    return { background: color('--bg'), foreground: color('--text'), cursor: color('--accent'), selectionBackground: color('--bg-active') }
+  }
 
   function act(action: TerminalAction): void {
     error = null
@@ -52,7 +61,7 @@
       fontSize: 12.5,
       cursorBlink: true,
       scrollback: 5000,
-      theme: { background: '#1d2026', foreground: '#d9dce1', cursor: '#d97757', selectionBackground: '#3a4150' },
+      theme: colors(host),
     })
     const f = new FitAddon()
     t.loadAddon(f)
@@ -69,6 +78,11 @@
       fit = null
       shown = null
     }
+  })
+
+  $effect(() => {
+    void theme
+    if (term && host) term.options.theme = colors(host)
   })
 
   // A new active tab: its screen from a snapshot, then its output after it.

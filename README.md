@@ -22,6 +22,12 @@ A barebones Claude Code frontend. TypeScript, Electron, Svelte and Anthropic's C
 - **Tabs and windows**: every tab is a conversation or a new tab page. Tabs reorder by dragging,
   move between windows by dragging onto another window's tab strip, and tear off into a new
   window by dragging them out. Windows and their tabs come back when the app restarts.
+- **Color themes**: to tell conversations apart, each has one of eight color themes: dark surfaces
+  with just a trace of color, and one accent color. A new conversation gets one at random, never
+  the one the conversation before it has (a fork: never its source's), and the palette in its
+  header picks another. The theme colors the conversation, and the whole window while its tab is
+  active. Kumi, the icon's dark blue with the duck's yellow, is the default; Graphite is Kumi
+  Code's first colors.
 - **Code review**: a reviewer conversation's `ReportFindings` call links to the conversation
   that wrote the code. Kumi Code relays the findings the user sends to the implementer (which
   fixes each or pushes back) and each answer straight on to the reviewer (which accepts or

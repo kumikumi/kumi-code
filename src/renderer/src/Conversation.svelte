@@ -2,6 +2,7 @@
 <script lang="ts">
   import { untrack } from 'svelte'
   import { modelRow } from '@shared/models'
+  import type { ThemeId } from '@shared/themes'
   import type { BrowserState, TerminalState } from '@shared/types'
   import { parseWrapUp, WRAP_UP_TOOL } from '@shared/wrap-up'
   import BrowserPane from './BrowserPane.svelte'
@@ -13,11 +14,12 @@
   import Requests from './Requests.svelte'
   import TerminalPane from './TerminalPane.svelte'
   import ReviewPanel from './ReviewPanel.svelte'
+  import ThemePicker from './ThemePicker.svelte'
   import Todos from './Todos.svelte'
   import { api, app, conversation } from './state.svelte'
   import { duration, errorMessage, tildify } from './util'
 
-  let { id, visible }: { id: string; visible: boolean } = $props()
+  let { id, theme, visible }: { id: string; theme: ThemeId; visible: boolean } = $props()
 
   /** Within this many pixels of the bottom, the transcript follows new output. */
   const STICK_DISTANCE = 80
@@ -38,10 +40,13 @@
   /** What the pane beside the transcript shows; null when it is closed. */
   let pane = $state<'review' | 'browser' | 'terminal' | null>(null)
   let root = $state<HTMLDivElement>()
+  /** The theme the pointer is on in the theme menu. */
+  let preview = $state<ThemeId | null>(null)
   let seenReview: string | null = null
   let browserWasOpen = false
 
   const meta = $derived(c.meta)
+  const shownTheme = $derived(preview ?? theme)
   // Rows get the folder as a string of its own: a new meta object (every meta
   // update) with the same folder then leaves them alone.
   const cwd = $derived(meta?.cwd ?? '')
@@ -127,11 +132,11 @@
 </script>
 
 {#if !meta}
-  <div class="conversation loading">
+  <div class="conversation loading" data-theme={theme}>
     {#if c.error}<div class="notice error">{c.error}</div>{:else}<div class="muted">Loading…</div>{/if}
   </div>
 {:else}
-  <div class="conversation" bind:this={root}>
+  <div class="conversation" data-theme={shownTheme} bind:this={root}>
     <header class="conversation-header">
       {#if renaming !== null}
         <!-- svelte-ignore a11y_autofocus -->
@@ -148,6 +153,7 @@
       <span class="project-label" title={meta.cwd}>{meta.project ?? 'No project'} <span class="muted">{tildify(meta.cwd)}</span></span>
       {#if headerError}<span class="notice error">{headerError}</span>{/if}
       <div class="pane-toggles">
+        <ThemePicker conversationId={id} {theme} onpreview={(t) => (preview = t)} onerror={(message) => (headerError = message)} />
         {#if meta.hasMessages}
           <button class="ghost icon-button header-fork" aria-label="Fork" data-tip={forkBlocked ? 'Fork once the turn ends' : 'Fork conversation'} disabled={forkBlocked} onclick={fork}>
             <Icon name="fork" />
@@ -206,7 +212,7 @@
       {:else if pane === 'browser'}
         <Dock kind="browser"><BrowserPane conversationId={id} browser={browser ?? NO_BROWSER} {visible} onhide={() => (pane = null)} /></Dock>
       {:else if pane === 'terminal'}
-        <Dock kind="terminal"><TerminalPane conversationId={id} terminals={c.terminals ?? NO_TERMINALS} {visible} onhide={() => (pane = null)} /></Dock>
+        <Dock kind="terminal"><TerminalPane conversationId={id} terminals={c.terminals ?? NO_TERMINALS} theme={shownTheme} {visible} onhide={() => (pane = null)} /></Dock>
       {/if}
     </div>
   </div>

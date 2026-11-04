@@ -1,6 +1,7 @@
 <!-- A window: its tab strip and its tabs. Conversation tabs stay mounted once shown, so switching back keeps scroll position and composer state. -->
 <script lang="ts">
   import { SvelteSet } from 'svelte/reactivity'
+  import { DEFAULT_THEME } from '@shared/themes'
   import Conversation from './Conversation.svelte'
   import NewTabPage from './NewTabPage.svelte'
   import { app, retain } from './state.svelte'
@@ -19,7 +20,7 @@
 
 {#if app.window}
   {@const w = app.window}
-  <div class="window">
+  <div class="window" data-theme={w.tabs.find((t) => t.id === w.activeTabId)?.theme ?? DEFAULT_THEME}>
     <TabStrip win={w} />
     <div class="tab-content">
       {#each w.tabs as tab (`${tab.id}:${tab.conversationId ?? 'new'}`)}
@@ -27,7 +28,7 @@
         {#if active || (tab.conversationId && shown.has(tab.id))}
           <div class="tab-pane" hidden={!active}>
             {#if tab.conversationId}
-              <Conversation id={tab.conversationId} visible={active} />
+              <Conversation id={tab.conversationId} theme={tab.theme} visible={active} />
             {:else}
               <NewTabPage tabId={tab.id} visible={active} />
             {/if}

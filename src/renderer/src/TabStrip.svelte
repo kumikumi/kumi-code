@@ -128,6 +128,7 @@
     <div
       bind:this={tabEls[tab.id]}
       class={['tab', tab.id === win.activeTabId && 'active', local?.tabId === tab.id && 'dragging']}
+      data-theme={tab.theme}
       style:transform={dx ? `translateX(${dx}px)` : undefined}
       role="tab"
       tabindex="-1"

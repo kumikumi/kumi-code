@@ -12,7 +12,7 @@
     "preview": "electron-vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && svelte-check --tsgo --tsconfig tsconfig.web.json --fail-on-warnings",
     "test": "vitest run",
-    "e2e": "electron-vite build --mode e2e && node e2e/drag.mjs && node e2e/draft.mjs && node e2e/conversation.mjs && node e2e/restore.mjs && node e2e/delete.mjs && node e2e/rows.mjs && node e2e/review.mjs && node e2e/browser.mjs && node e2e/quit.mjs && node e2e/next-step.mjs && node e2e/terminal.mjs && node e2e/settings.mjs && node e2e/fork.mjs && node e2e/images.mjs",
+    "e2e": "electron-vite build --mode e2e && node e2e/drag.mjs && node e2e/draft.mjs && node e2e/conversation.mjs && node e2e/restore.mjs && node e2e/delete.mjs && node e2e/rows.mjs && node e2e/review.mjs && node e2e/browser.mjs && node e2e/quit.mjs && node e2e/next-step.mjs && node e2e/terminal.mjs && node e2e/settings.mjs && node e2e/fork.mjs && node e2e/images.mjs && node e2e/themes.mjs",
     "icon": "electron scripts/icon.mjs",
     "postinstall": "chmod +x node_modules/node-pty/prebuilds/*/spawn-helper && node scripts/brand-electron.mjs"
   },

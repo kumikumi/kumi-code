@@ -35,6 +35,7 @@ const api: KumiApi = {
   setModel: (id, model) => ipcRenderer.invoke(IPC.setModel, id, model),
   setEffort: (id, effort) => ipcRenderer.invoke(IPC.setEffort, id, effort),
   setPermissionMode: (id, mode) => ipcRenderer.invoke(IPC.setPermissionMode, id, mode),
+  setTheme: (id, theme) => ipcRenderer.invoke(IPC.setTheme, id, theme),
   setDraft: (id, draft) => ipcRenderer.send(IPC.setDraft, id, draft),
   showConversation: (id) => ipcRenderer.invoke(IPC.showConversation, id),
   imageMenu: (target) => ipcRenderer.send(IPC.imageMenu, target),

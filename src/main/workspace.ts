@@ -26,7 +26,9 @@ import { hasUncommittedChanges } from '../core/git'
 import { createScratchFolder, projectName } from '../core/sessions'
 import type { StoredMessage } from '../core/transcript'
 import { wrapUpResult } from '../core/wrap-up'
-import type { Store, StoredWindow } from '../core/store'
+import type { Store, StoredConversation, StoredState, StoredWindow } from '../core/store'
+import { DEFAULT_THEME, isTheme, randomTheme } from '@shared/themes'
+import type { ThemeId } from '@shared/themes'
 import { IPC } from '@shared/types'
 import { parseWrapUp } from '@shared/wrap-up'
 import type {
@@ -129,7 +131,8 @@ export class Workspace {
       minHeight: 400,
       show: false,
       title: 'Kumi Code',
-      backgroundColor: '#1d2026',
+      // The default theme's --bg in styles.css, until the page draws.
+      backgroundColor: '#171c2d',
       titleBarStyle: 'hidden',
       trafficLightPosition: { x: 14, y: 13 },
       webPreferences: { preload: this.opts.preload, sandbox: true, contextIsolation: true, nodeIntegration: false },
@@ -315,7 +318,7 @@ export class Workspace {
     const id = randomUUID()
     this.opts.store.update((s) => {
       // A pick the model list no longer offers falls back to the default once the list is known.
-      s.conversations[id] = { cwd: folder, scratch, createdAt: Date.now(), ...DEFAULT_SETTINGS, ...s.lastPicked }
+      s.conversations[id] = { cwd: folder, scratch, createdAt: Date.now(), ...DEFAULT_SETTINGS, ...s.lastPicked, theme: randomTheme(newestTheme(s)) }
       if (!scratch) {
         s.recents = [{ path: folder, lastUsed: Date.now() }, ...s.recents.filter((r) => r.path !== folder)].slice(0, 50)
       }
@@ -367,6 +370,16 @@ export class Workspace {
     this.broadcast(IPC.evConversationsChanged)
   }
 
+  setTheme(id: string, theme: ThemeId): void {
+    if (!isTheme(theme)) throw new Error(`Unknown theme ${String(theme)}`)
+    if (!(id in this.opts.store.get().conversations)) throw new Error(`Unknown conversation ${id}`)
+    this.opts.store.update((s) => {
+      const entry = s.conversations[id]
+      if (entry) entry.theme = theme
+    })
+    this.tabChanged(id)
+  }
+
   async deleteConversation(id: string): Promise<void> {
     // Claude Code writes to the transcript until its process has exited (the
     // turn it was in, cost totals, the title), which would bring the file back.
@@ -414,6 +427,8 @@ export class Workspace {
         effort: meta?.effort ?? stored.effort,
         permissionMode: meta?.permissionMode ?? stored.permissionMode,
         forkedFrom: { id, title, at, lastAt: Number.isNaN(lastAt) ? null : lastAt },
+        // It opens beside its source, so it takes another color.
+        theme: randomTheme(stored.theme ?? DEFAULT_THEME),
       }
       if (model) s.lastPicked = { ...s.lastPicked, model }
     })
@@ -869,15 +884,16 @@ export class Workspace {
   }
 
   private tabInfo(tab: Tab): TabInfo {
-    if (!tab.conversationId) return { id: tab.id, conversationId: null, title: 'New tab', status: 'new' }
+    if (!tab.conversationId) return { id: tab.id, conversationId: null, title: 'New tab', status: 'new', theme: DEFAULT_THEME }
+    const theme = this.opts.store.get().conversations[tab.conversationId]?.theme ?? DEFAULT_THEME
     const conversation = this.conversations.get(tab.conversationId)
-    if (!conversation) return { id: tab.id, conversationId: tab.conversationId, title: 'Conversation', status: 'idle' }
+    if (!conversation) return { id: tab.id, conversationId: tab.conversationId, title: 'Conversation', status: 'idle', theme }
     const meta = conversation.snapshotMeta()
     let status: TabStatus = 'idle'
     if (meta.requests.length > 0 || meta.waiting) status = 'attention'
     else if (meta.status === 'running' || meta.status === 'starting' || meta.compacting) status = 'running'
     else if (meta.status === 'error') status = 'error'
-    return { id: tab.id, conversationId: tab.conversationId, title: meta.title, status }
+    return { id: tab.id, conversationId: tab.conversationId, title: meta.title, status, theme }
   }
 
   private readonly lastTabInfo = new Map<string, string>()
@@ -938,6 +954,13 @@ function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promi
 }
 
 /** Stored bounds, unless they would put the window off every display. */
+/** The theme of the conversation that came to Kumi Code last; null when there is none. */
+function newestTheme(state: StoredState): ThemeId | null {
+  let newest: StoredConversation | null = null
+  for (const c of Object.values(state.conversations)) if (!newest || c.createdAt > newest.createdAt) newest = c
+  return newest ? (newest.theme ?? DEFAULT_THEME) : null
+}
+
 function visibleBounds(bounds: Partial<Rectangle> | null): Partial<Rectangle> {
   if (!bounds || bounds.x === undefined || bounds.y === undefined) return bounds ?? {}
   const { x, y } = bounds

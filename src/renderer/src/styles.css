@@ -1,17 +1,51 @@
+/* ---- color themes ----
+   A conversation's theme (src/shared/themes.ts) sets these on its tab, its view and, while its tab
+   is active, the window. Each is one hue over the same lightness ramp: dark surfaces with only a trace
+   of it (Kumi, after the icon, a little more), near-white text, and one accent. --deep: code blocks and
+   the browser's letterbox; --on-accent: text on an accent background. */
+:root, [data-theme='kumi'] {
+  --strip: #0f1321; --bg: #171c2d; --bg-raised: #202538; --bg-input: #252b3e; --bg-hover: #2b3145; --bg-active: #363d53; --border: #2e3346;
+  --text: #d9dce3; --text-strong: #f3f4f7; --muted: #9298a9; --faint: #666b7c; --deep: #090c19;
+  --accent: #f8cc2f; --accent-hover: #e4b900; --on-accent: #141b40;
+}
+[data-theme='anuja'] {
+  --strip: #121718; --bg: #1b2022; --bg-raised: #242a2b; --bg-input: #2a2f31; --bg-hover: #2f3638; --bg-active: #3b4244; --border: #32383a;
+  --text: #dadcdd; --text-strong: #f3f4f4; --muted: #94999b; --faint: #686d6e; --deep: #0c1011;
+  --accent: #60d0e3; --accent-hover: #4abdcf; --on-accent: #001f27;
+}
+[data-theme='pine'] {
+  --strip: #141715; --bg: #1d201e; --bg-raised: #262927; --bg-input: #2b2f2d; --bg-hover: #313533; --bg-active: #3d413f; --border: #343836;
+  --text: #dbdcdb; --text-strong: #f4f4f4; --muted: #969997; --faint: #696d6b; --deep: #0e100f;
+  --accent: #6fd5b0; --accent-hover: #5bc19d; --on-accent: #052016;
+}
+[data-theme='moss'] {
+  --strip: #121310; --bg: #1b1c18; --bg-raised: #242521; --bg-input: #2a2b26; --bg-hover: #30312c; --bg-active: #3c3d37; --border: #33342f;
+  --text: #dcdcda; --text-strong: #f4f4f3; --muted: #989994; --faint: #6b6c68; --deep: #0c0d09;
+  --accent: #bfdb77; --accent-hover: #adc864; --on-accent: #191d06;
+}
+[data-theme='ember'] {
+  --strip: #1a1513; --bg: #241e1b; --bg-raised: #2d2724; --bg-input: #332d2a; --bg-hover: #3a332f; --bg-active: #463e3b; --border: #3c3532;
+  --text: #dedbda; --text-strong: #f5f4f3; --muted: #9d9794; --faint: #706a68; --deep: #130e0c;
+  --accent: #f2985f; --accent-hover: #dd854c; --on-accent: #291409;
+}
+[data-theme='rose'] {
+  --strip: #1a1416; --bg: #241d1f; --bg-raised: #2d2629; --bg-input: #332c2e; --bg-hover: #393235; --bg-active: #463e40; --border: #3c3537;
+  --text: #dedbdc; --text-strong: #f5f4f4; --muted: #9d9698; --faint: #706a6c; --deep: #130e10;
+  --accent: #f194ae; --accent-hover: #dc829c; --on-accent: #2c101c;
+}
+[data-theme='plum'] {
+  --strip: #18151a; --bg: #211e24; --bg-raised: #2b272d; --bg-input: #312c33; --bg-hover: #37323a; --bg-active: #433e46; --border: #39353c;
+  --text: #dddbde; --text-strong: #f4f4f5; --muted: #9a979d; --faint: #6e6a70; --deep: #110e13;
+  --accent: #d0a2ed; --accent-hover: #bd8fd9; --on-accent: #22132b;
+}
+/* Kumi Code's first colors: near-neutral, with Claude's orange. */
+[data-theme='graphite'] {
+  --strip: #15171c; --bg: #1d2026; --bg-raised: #252932; --bg-input: #2a2f39; --bg-hover: #2f3541; --bg-active: #3a4150;
+  --border: #323844; --text: #d9dce1; --text-strong: #f3f4f6; --muted: #8e95a3; --faint: #626a78; --deep: #0d1117;
+  --accent: #d97757; --accent-hover: #c4663f; --on-accent: #fff;
+}
+
 :root {
-  --strip: #15171c;
-  --bg: #1d2026;
-  --bg-raised: #252932;
-  --bg-input: #2a2f39;
-  --bg-hover: #2f3541;
-  --bg-active: #3a4150;
-  --border: #323844;
-  --text: #d9dce1;
-  --text-strong: #f3f4f6;
-  --muted: #8e95a3;
-  --faint: #626a78;
-  --accent: #d97757;
-  --accent-hover: #c4663f;
   --blue: #6ea8fe;
   --green: #4cc38a;
   --red: #f0616d;
@@ -36,7 +70,7 @@ button {
 }
 button:hover { background: var(--bg-hover); color: var(--text-strong); }
 button:disabled { opacity: 0.45; cursor: default; }
-button.primary { background: var(--accent); color: #fff; }
+button.primary { background: var(--accent); color: var(--on-accent); }
 button.primary:hover:not(:disabled) { background: var(--accent-hover); }
 button.ghost { background: transparent; color: var(--muted); }
 button.ghost:hover { background: var(--bg-hover); color: var(--text-strong); }
@@ -78,7 +112,7 @@ code, pre { font-family: var(--mono); font-size: 12.5px; }
 }
 .tab:is(.active, :hover, .dragging, .placeholder)::before,
 .tab:is(.active, :hover, .dragging, .placeholder) + .tab::before { display: none; }
-.tab:hover { background: #1f2229; color: var(--text); }
+.tab:hover { background: color-mix(in oklab, var(--bg), var(--bg-raised) 15%); color: var(--text); }
 .tab.active { background: var(--bg); color: var(--text-strong); }
 .tab.dragging { transition: none; z-index: 2; background: var(--bg-raised); box-shadow: 0 0 8px rgba(0, 0, 0, 0.4); }
 .tab.placeholder { background: var(--bg-raised); opacity: 0.8; outline: 1px dashed var(--accent); }
@@ -108,7 +142,7 @@ code, pre { font-family: var(--mono); font-size: 12.5px; }
 .newtab-header h1 { margin: 0; font-size: 22px; color: var(--text-strong); font-weight: 650; }
 .account { margin-left: auto; display: flex; gap: 14px; color: var(--muted); font-size: 12.5px; }
 .newtab section { margin-top: 28px; }
-.newtab h2 { margin: 0 0 10px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); font-weight: 600; }
+.newtab h2 { margin: 0 0 10px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--accent); font-weight: 600; }
 .section-head { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
 .section-head h2 { margin: 0; }
 .search { margin-left: auto; width: 220px; }
@@ -144,7 +178,7 @@ code, pre { font-family: var(--mono); font-size: 12.5px; }
 .rename { flex: 1; margin: 4px 6px; }
 
 /* ---- conversation ---- */
-.conversation { height: 100%; display: flex; flex-direction: column; }
+.conversation { height: 100%; display: flex; flex-direction: column; background: var(--bg); }
 .conversation-body { flex: 1; min-height: 0; display: flex; }
 .conversation-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .conversation.loading { align-items: center; justify-content: center; }
@@ -263,7 +297,7 @@ code, pre { font-family: var(--mono); font-size: 12.5px; }
 .markdown th { background: var(--bg-raised); }
 .markdown hr { border: 0; border-top: 1px solid var(--border); }
 .markdown :not(pre) > code { background: var(--bg-input); padding: 1px 5px; border-radius: 4px; font-size: 0.88em; }
-.codeblock { margin: 0.6em 0; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: #0d1117; }
+.codeblock { margin: 0.6em 0; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--deep); }
 .codeblock-bar { display: flex; align-items: center; justify-content: space-between; padding: 2px 4px 2px 10px; font-size: 11.5px; color: var(--faint); background: var(--strip); }
 .codeblock pre { margin: 0; padding: 10px 12px; overflow-x: auto; background: transparent !important; }
 
@@ -446,7 +480,7 @@ button.pane-on { background: var(--bg-active); color: var(--text-strong); }
 .browser-activity-dot { display: inline-block; width: 7px; height: 7px; margin-left: 6px; border-radius: 50%; background: var(--accent); animation: pulse 1.2s ease-in-out infinite; }
 .browser-activity .browser-activity-dot { margin-left: 0; }
 .browser-error { padding: 4px 12px; }
-.browser-view { flex: 1; min-height: 0; position: relative; display: flex; flex-direction: column; background: #0f1115; }
+.browser-view { flex: 1; min-height: 0; position: relative; display: flex; flex-direction: column; background: var(--deep); }
 .browser-view canvas { position: absolute; inset: 0; margin: auto; max-width: 100%; max-height: 100%; background: #fff; outline: none; }
 .browser-view canvas:focus { box-shadow: 0 0 0 1px var(--faint); }
 /* What the browser or terminal pane shows with no tab. */
@@ -475,5 +509,25 @@ button.pane-on { background: var(--bg-active); color: var(--text-strong); }
 .terminal-host { height: 100%; }
 .terminal-running { display: inline-block; width: 7px; height: 7px; margin: 0 6px; border-radius: 50%; background: var(--green); animation: pulse 1.2s ease-in-out infinite; }
 .terminal-typing { display: inline-block; width: 7px; height: 7px; margin: 0 6px; border-radius: 50%; background: var(--accent); animation: pulse 0.6s ease-in-out infinite; }
-.terminal-typing-badge { position: absolute; top: 8px; right: 12px; padding: 3px 9px; border-radius: 10px; background: var(--accent); color: #fff; font-size: 11.5px; font-weight: 600; pointer-events: none; }
+.terminal-typing-badge { position: absolute; top: 8px; right: 12px; padding: 3px 9px; border-radius: 10px; background: var(--accent); color: var(--on-accent); font-size: 11.5px; font-weight: 600; pointer-events: none; }
 
+
+/* ---- color theme menu ---- */
+.theme-menu {
+  inset: auto; top: anchor(bottom); right: anchor(right); margin: 6px 0 0; padding: 6px;
+  background: var(--bg-raised); color: var(--text); border: 1px solid var(--border); border-radius: 10px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.4);
+}
+.theme-grid { display: grid; grid-template-columns: repeat(4, 80px); gap: 2px; }
+.theme-option { display: flex; flex-direction: column; align-items: stretch; gap: 6px; padding: 7px 7px 5px; background: transparent; border-radius: 7px; }
+.theme-option:hover { background: var(--bg-hover); }
+/* The theme in miniature: its tab strip and background, a message and the accent. */
+.theme-sample {
+  position: relative; height: 38px; border-radius: 5px; border: 1px solid var(--border);
+  background: linear-gradient(var(--strip) 0 10px, var(--bg) 10px);
+}
+.theme-sample::before { content: ''; position: absolute; right: 6px; top: 15px; width: 28px; height: 8px; border-radius: 3px; background: var(--bg-active); }
+.theme-sample::after { content: ''; position: absolute; left: 6px; bottom: 5px; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+.theme-option[aria-pressed='true'] .theme-sample { outline: 2px solid var(--accent); outline-offset: 2px; }
+.theme-name { font-size: 12px; color: var(--muted); text-align: center; }
+.theme-option:hover .theme-name, .theme-option[aria-pressed='true'] .theme-name { color: var(--text-strong); }

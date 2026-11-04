@@ -29,13 +29,14 @@ What the code does, precisely. `README.md` is the short version.
   `terminal-tools.ts` (the `terminal` MCP server).
 - `src/preload/` — the `window.kumi` bridge (`KumiApi` in `src/shared/types.ts`).
 - `src/shared/` — `types.ts` (everything that crosses IPC), `review.ts` (review rules the main
-  process and the renderer share), `wrap-up.ts` (reading a `wrap_up` call).
+  process and the renderer share), `wrap-up.ts` (reading a `wrap_up` call), `themes.ts` (the color
+  themes; their colors are in the renderer's `styles.css`).
 - `src/renderer/` — Svelte 5 UI: `App.svelte` (a window), `TabStrip.svelte`, `NewTabPage.svelte`,
   `Conversation.svelte`, `Item.svelte` (a transcript item), `ToolInput.svelte`, `Requests.svelte`,
   `Composer.svelte`, `Rich.svelte` (markdown or a code block), `Todos.svelte`, `FindingsCard.svelte`,
   `FindingDetails.svelte`, `RelayCard.svelte`, `ReviewPanel.svelte`, `Dock.svelte` (the pane beside
   the transcript), `BrowserPane.svelte`, `TerminalPane.svelte`, `NextStep.svelte`, `Icon.svelte` (line
-  icons); `state.svelte.ts`
+  icons), `ThemePicker.svelte`; `state.svelte.ts`
   (window and conversation state), `markdown.ts`, `tools.ts`, `util.ts`.
 - `resources/icon.svg` — the app icon; `scripts/icon.mjs` renders it in Electron into
   `resources/icon.icns`. `scripts/brand-electron.mjs`, run by `postinstall` on macOS, renames the
@@ -183,6 +184,17 @@ What the code does, precisely. `README.md` is the short version.
   new tab page or one conversation; a conversation is in at most one tab (opening it again
   switches to that tab).
 - The renderer of a window draws its tab strip and keeps a conversation's view mounted once shown.
+- Color themes (`themes.ts`): Kumi (the default: the icon's dark blue, the duck's yellow), Anuja,
+  Pine, Moss, Ember, Rose, Plum and Graphite (Kumi Code's first colors, near-neutral with Claude's
+  orange). Each sets the same CSS variables under `[data-theme]`: one hue over the same lightness
+  ramp, with only a trace of it in the surfaces (a little more in Kumi), and an accent. A new
+  conversation gets a random theme (`randomTheme`), never that of the conversation that came to Kumi
+  Code last (the newest `createdAt`); a fork, never its source's. A conversation's theme is in the
+  store (`setTheme`) and on its `TabInfo`; a new tab page has the default, and so does a
+  conversation without a theme in the store (one from before themes, or a Claude Code session opened
+  from elsewhere). It applies to the conversation's view (the terminal too), its tab and, while that
+  tab is active, the window (the tab strip). The header's palette button opens a menu of the themes
+  in miniature; pointing at one previews it on the conversation, clicking one picks it.
 - A conversation's unsent draft lives in the main process: the composer sends every change at
   once, so a tab moved to another window, whose composer starts from that copy, keeps all of it.
 - A pending request's form (a permission note, question answers, plan feedback) is cleared only
@@ -459,7 +471,7 @@ What the code does, precisely. `README.md` is the short version.
 
 `<userData>/state.json` (`~/Library/Application Support/Kumi Code/`, or `KUMI_USER_DATA`), mode
 0600, written atomically 300 ms after a change and on quit: `{ version: 2, windows, conversations:
-{ [id]: { cwd, scratch, createdAt, model, effort, permissionMode, forkedFrom? } }, recents, reviews: { [id]:
+{ [id]: { cwd, scratch, createdAt, model, effort, permissionMode, forkedFrom?, theme? } }, recents, reviews: { [id]:
 Review }, lastPicked?: { model?, effort?, permissionMode? } }`. Another version is an error. Transcripts live where Claude Code keeps them, under `~/.claude/projects/`.
 
 ## Not yet
