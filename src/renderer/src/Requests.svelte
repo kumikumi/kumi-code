@@ -13,9 +13,10 @@
   const requestId = $derived(request?.id)
   let note = $state('')
   let error = $state<string | null>(null)
-  /** Per question: the picked option labels and the typed answer. */
+  /** Per question: the picked option labels, the typed answer, and whether the typed answer is picked. */
   let picked = $state<string[][]>([])
   let other = $state<string[]>([])
+  let otherOn = $state<boolean[]>([])
 
   // A new request starts with an empty form. Only its id counts: every meta
   // update brings a new copy of the same request.
@@ -24,10 +25,13 @@
     note = ''
     picked = []
     other = []
+    otherOn = []
   })
 
   const answers = $derived(
-    request?.kind === 'question' ? request.questions.map((_, i) => [...(picked[i] ?? []), ...(other[i]?.trim() ? [other[i].trim()] : [])].join(', ')) : [],
+    request?.kind === 'question'
+      ? request.questions.map((_, i) => [...(picked[i] ?? []), ...(otherOn[i] && other[i]?.trim() ? [other[i].trim()] : [])].join(', '))
+      : [],
   )
 
   function respond(response: RequestResponse): void {
@@ -39,7 +43,13 @@
   function pick(i: number, label: string, multi: boolean): void {
     const current = picked[i] ?? []
     picked[i] = multi ? (current.includes(label) ? current.filter((l) => l !== label) : [...current, label]) : [label]
-    if (!multi) other[i] = ''
+    // The typed text stays, so picking Other again brings it back.
+    if (!multi) otherOn[i] = false
+  }
+
+  function pickOther(i: number, on: boolean, multi: boolean): void {
+    otherOn[i] = on
+    if (on && !multi) picked[i] = []
   }
 </script>
 
@@ -86,13 +96,19 @@
                   </span>
                 </label>
               {/each}
-              <input
-                placeholder="Other…"
-                bind:value={other[i]}
-                oninput={() => {
-                  if (!q.multiSelect && other[i]) picked[i] = []
-                }}
-              />
+              <div class="option other">
+                <input
+                  type={q.multiSelect ? 'checkbox' : 'radio'}
+                  name="q{i}"
+                  aria-label="Other"
+                  checked={otherOn[i] ?? false}
+                  onchange={(e) => {
+                    pickOther(i, e.currentTarget.checked, q.multiSelect)
+                    if (e.currentTarget.checked) (e.currentTarget.nextElementSibling as HTMLInputElement).focus()
+                  }}
+                />
+                <input class="grow" placeholder="Other…" bind:value={other[i]} onclick={() => pickOther(i, true, q.multiSelect)} oninput={() => pickOther(i, true, q.multiSelect)} />
+              </div>
             </div>
           </div>
         {/each}
