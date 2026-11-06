@@ -515,10 +515,22 @@ button.pane-on { background: var(--bg-active); color: var(--text-strong); }
 
 
 /* ---- color theme menu ---- */
+/* While the menu is open its button is a tab of it: one surface inside one outline. */
+button.theme-button:has(+ .theme-menu:popover-open) {
+  background: var(--bg-raised); color: var(--text-strong); border-color: var(--border); border-radius: 6px 6px 0 0;
+}
+/* Its top edge overlaps the button's bottom edge, so the two outlines meet in a single line. */
 .theme-menu {
-  inset: auto; top: anchor(bottom); right: anchor(right); margin: 6px 0 0; padding: 6px;
-  background: var(--bg-raised); color: var(--text); border: 1px solid var(--border); border-radius: 10px;
-  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.4);
+  inset: auto; top: calc(anchor(bottom) - 1px); right: anchor(right); margin: 0; padding: 6px;
+  background: var(--bg-raised); color: var(--text); border: 1px solid var(--border); border-radius: 10px 0 10px 10px;
+  /* Cast only down and to the sides, as the menu is in the top layer and would shade the tab above it. */
+  box-shadow: 0 12px 20px -8px rgba(0, 0, 0, 0.45);
+}
+/* Opens the outline where the tab joins the menu. Fixed rather than absolute, as only that may anchor to the button. */
+.theme-menu::before {
+  content: ''; position: fixed; position-anchor: inherit; height: 1px;
+  top: calc(anchor(bottom) - 1px); left: calc(anchor(left) + 1px); right: calc(anchor(right) + 1px);
+  background: var(--bg-raised);
 }
 .theme-grid { display: grid; grid-template-columns: repeat(4, 80px); gap: 2px; }
 .theme-option { display: flex; flex-direction: column; align-items: stretch; gap: 6px; padding: 7px 7px 5px; background: transparent; border-radius: 7px; }

@@ -19,7 +19,7 @@
 </script>
 
 <button
-  class="ghost icon-button"
+  class="ghost icon-button theme-button"
   style:anchor-name={anchor}
   popovertarget="theme-menu-{conversationId}"
   aria-label="Color theme"
