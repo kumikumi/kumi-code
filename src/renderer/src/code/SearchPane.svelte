@@ -104,7 +104,7 @@
       {#if !collapsed}
         {#each file.matches as match, i (i)}
           {@const lead = shown(match.preview, match.start)}
-          {@const opened = view.searchOpened?.path === file.path && view.searchOpened.index === i && view.activeId === `file:${abs}`}
+          {@const opened = view.searchOpened?.path === file.path && view.searchOpened.index === i && view.activeId === view.fileTabId(abs)}
           <div
             class={['tree-row search-match', opened && 'selected']}
             role="treeitem"

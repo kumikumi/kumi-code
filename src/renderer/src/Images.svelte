@@ -41,7 +41,10 @@
   {@const image = viewing}
   <dialog class="image-viewer" {@attach (dialog) => dialog.showModal()} onclose={() => ((viewing = null), (size = null))}>
     <button title="Close" onclick={(e) => e.currentTarget.closest('dialog')?.close()} oncontextmenu={(e) => menu(e, image)}>
-      <img src={src(image)} alt="" onload={(e) => (size = `${e.currentTarget.naturalWidth} × ${e.currentTarget.naturalHeight}`)} />
+      <img src={src(image)} alt="" onload={(e) => {
+          const img = e.currentTarget as HTMLImageElement
+          size = `${img.naturalWidth} × ${img.naturalHeight}`
+        }} />
     </button>
     {#if size}<div class="image-size">{size} {image.mediaType.replace('image/', '').toUpperCase()}</div>{/if}
   </dialog>

@@ -124,7 +124,8 @@
         await view.loadDir(dirname(to))
         view.selected = to
         // A tab of the renamed file opens the file under its new name.
-        if (view.tabs.some((t) => t.id === `file:${edit.path}`) && (await view.closeTab(`file:${edit.path}`))) view.openFile(to)
+        const tab = view.fileTabId(edit.path)
+        if (view.tabs.some((t) => t.id === tab) && (await view.closeTab(tab))) view.openFile(to)
       }
     } catch (err) {
       error = errorMessage(err)

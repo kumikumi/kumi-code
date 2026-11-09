@@ -13,7 +13,7 @@ export interface RepoInfo {
   gitDir: string
 }
 
-export class GitError extends Error {}
+class GitError extends Error {}
 
 /**
  * Runs git and collects its output. Exit codes in `codes` count as success. Optional

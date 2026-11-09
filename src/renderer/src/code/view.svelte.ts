@@ -173,14 +173,19 @@ export class CodeView {
   // ---- tabs ----
 
   openFile(path: string, opts: { preview?: boolean; line?: number; column?: number; length?: number; focus?: boolean } = {}): void {
-    this.openTab({ id: `file:${path}`, kind: 'file', path, title: basename(path), detail: '', preview: false, original: null, modified: { kind: 'file', path } }, opts)
+    this.openTab({ id: this.fileTabId(path), kind: 'file', path, title: basename(path), detail: '', preview: false, original: null, modified: { kind: 'file', path } }, opts)
     this.recent = [path, ...this.recent.filter((p) => p !== path)].slice(0, 50)
+  }
+
+  /** The tab a file opens in; a pane's row of it shows when that tab does. */
+  fileTabId(path: string): string {
+    return `file:${path}`
   }
 
   /** The tab a change in source control opens, so its row can show when that tab does. */
   changeTabId(change: GitChange, group: 'staged' | 'unstaged' | 'conflicts', root: string): string {
     const path = `${root}/${change.path}`
-    if (group === 'conflicts' || change.letter === 'U') return `file:${path}`
+    if (group === 'conflicts' || change.letter === 'U') return this.fileTabId(path)
     return `diff:${group === 'staged' ? 'index' : 'wt'}:${path}`
   }
 
@@ -402,7 +407,7 @@ export class CodeView {
   }
 
   /** VS Code's explorer.autoReveal: the folders down to the active file open, and it is selected. */
-  revealInExplorer(path: string): void {
+  private revealInExplorer(path: string): void {
     if (!path.startsWith(`${this.cwd}/`)) return
     this.selected = path
     for (let dir = dirname(path); dir.length > this.cwd.length; dir = dirname(dir)) {
@@ -474,7 +479,7 @@ export class CodeView {
     if (await this.runGit({ kind: 'commit', message: this.commitMessage, amend, push })) this.commitMessage = ''
   }
 
-  openCommit(hash: string): void {
+  private openCommit(hash: string): void {
     if (this.graphOpen.has(hash)) return
     this.graphOpen.set(hash, null)
     api.commitChanges(this.cwd, hash).then(

@@ -88,10 +88,6 @@
     view.graphReveal = null
     void tick().then(() => (graph?.querySelector('.graph-file.selected') ?? graph?.querySelector(`[data-hash="${hash}"]`))?.scrollIntoView({ block: 'center' }))
   })
-
-  function toggle(commit: GitCommit): void {
-    view.toggleCommit(commit.hash)
-  }
 </script>
 
 <div class="graph" bind:this={graph}>
@@ -109,7 +105,7 @@
       aria-expanded={open}
       tabindex="-1"
       title={`${commit.hash.slice(0, 7)} · ${commit.author} · ${fullTime(commit.date)}\n\n${commit.subject}`}
-      onclick={() => toggle(commit)}
+      onclick={() => view.toggleCommit(commit.hash)}
       onkeydown={() => {}}
     >
       <svg class="graph-lanes" width={row.width * LANE + 6} height={ROW} aria-hidden="true">
