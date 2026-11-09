@@ -45,6 +45,12 @@ A barebones Claude Code frontend. TypeScript, Electron, Svelte and Anthropic's C
   the user ran, and runs commands there that the user approves, line by line. With one more tool,
   `send_to_terminal`, the agent types text and presses keys in any tab, the user's own included,
   so it can work in a shell the user logged in to over SSH or navigate a full-screen program.
+- **Code view**: each conversation has a lightweight VS Code left of the transcript, for reading,
+  reviewing and light edits: Explorer, Search (ripgrep) and Source Control panes (stage, commit,
+  push, the commit graph) and a Monaco editor with VS Code's tabs, diffs, highlighting and gutter
+  marks for changed lines, and the cursor line's git blame, as GitLens shows it. ⌘P opens a
+  file by name, ⇧⌘F searches the files' contents, ⇧⌘P lists commands. The code toggle's badge counts
+  the files git sees changed, staged and unstaged.
 - **New tab page**: past conversations (those started in Kumi Code, or every Claude Code session
   on this machine with the toggle) and a new conversation in a recent project, a picked folder
   or no project.

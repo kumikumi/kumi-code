@@ -61,6 +61,20 @@ export function fullTime(ts: number): string {
   return new Date(ts).toLocaleString(undefined, { dateStyle: 'full', timeStyle: 'medium' })
 }
 
+/** How long ago something was, as GitLens says it: "just now", "3 minutes ago", "yesterday", "2 months ago". */
+export function relativeTime(ts: number, now = Date.now()): string {
+  const s = Math.floor((now - ts) / 1000)
+  const ago = (n: number, unit: string, one: string): string => (n === 1 ? one : `${n} ${unit}s ago`)
+  if (s < 10) return 'just now'
+  if (s < 60) return `${s} seconds ago`
+  if (s < 3600) return ago(Math.floor(s / 60), 'minute', 'a minute ago')
+  if (s < 86400) return ago(Math.floor(s / 3600), 'hour', 'an hour ago')
+  const days = Math.floor(s / 86400)
+  if (days < 30) return ago(days, 'day', 'yesterday')
+  if (days < 365) return ago(Math.max(1, Math.round(days / 30)), 'month', 'last month')
+  return ago(Math.floor(days / 365), 'year', 'last year')
+}
+
 /** How long something took, in whole seconds: "<1s", "42s", "3m 5s", "1h 12m". */
 export function duration(ms: number): string {
   const s = Math.floor(ms / 1000)

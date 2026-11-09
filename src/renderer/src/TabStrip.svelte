@@ -5,6 +5,7 @@
 -->
 <script lang="ts">
   import type { DragHover, TabInfo, WindowState } from '@shared/types'
+  import { confirmCloseConversation } from './code/view.svelte'
   import { api } from './state.svelte'
 
   let { win }: { win: WindowState } = $props()
@@ -37,6 +38,11 @@
       hover = h
     }),
   )
+
+  /** Closes a tab once its code view's unsaved files are saved or dropped. */
+  async function close(tab: TabInfo): Promise<void> {
+    if (!tab.conversationId || (await confirmCloseConversation(tab.conversationId))) await api.closeTab(tab.id)
+  }
 
   // The main process hit-tests drags against every window's tabs.
   function report(): void {
@@ -135,13 +141,13 @@
       aria-selected={tab.id === win.activeTabId}
       title={tab.title}
       onpointerdown={(e) => onpointerdown(e, tab, index)}
-      onauxclick={(e) => e.button === 1 && api.closeTab(tab.id)}
+      onauxclick={(e) => e.button === 1 && void close(tab)}
     >
       {#if tab.status === 'running'}<span class="tab-status spinner"></span>
       {:else if tab.status === 'attention'}<span class="tab-status dot attention" title="Waiting for you"></span>
       {:else if tab.status === 'error'}<span class="tab-status dot error" title="Error"></span>{/if}
       <span class="tab-title">{tab.title}</span>
-      <button class="tab-close" onclick={() => api.closeTab(tab.id)} aria-label="Close tab">×</button>
+      <button class="tab-close" onclick={() => void close(tab)} aria-label="Close tab">×</button>
     </div>
   {/each}
   {#if hover && hover.index >= win.tabs.length}{@render placeholder(hover.title)}{/if}

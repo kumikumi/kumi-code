@@ -1,6 +1,7 @@
 // Types shared by the main process, the preload bridge and the renderer. Everything
 // here crosses IPC, so it is plain data.
 
+import type { CodeApi } from './code'
 import type { ThemeId } from './themes'
 
 export type EffortLevel = 'low' | 'medium' | 'high' | 'xhigh' | 'max'
@@ -441,6 +442,25 @@ export const IPC = {
   terminalInput: 'terminal:input',
   terminalResize: 'terminal:resize',
   watchTerminals: 'terminal:watch',
+  watchFolder: 'code:watch',
+  gitStatus: 'code:status',
+  listDir: 'code:list-dir',
+  readSource: 'code:read',
+  writeFile: 'code:write',
+  createFile: 'code:create',
+  renamePath: 'code:rename',
+  trashPath: 'code:trash',
+  revealPath: 'code:reveal',
+  listFiles: 'code:list-files',
+  search: 'code:search',
+  git: 'code:git',
+  gitLog: 'code:log',
+  commitChanges: 'code:commit-changes',
+  branches: 'code:branches',
+  blame: 'code:blame',
+  commitMessage: 'code:commit-message',
+  showMenu: 'menu:show',
+  ask: 'dialog:ask',
   evWindowState: 'ev:window',
   evConversationMeta: 'ev:conversation-meta',
   evConversationItems: 'ev:conversation-items',
@@ -453,9 +473,10 @@ export const IPC = {
   evTerminals: 'ev:terminals',
   evTerminalOutput: 'ev:terminal-output',
   evTerminalShow: 'ev:terminal-show',
+  evFolderChanged: 'ev:folder-changed',
 } as const
 
-export interface KumiApi {
+export interface KumiApi extends CodeApi {
   getWindowState(): Promise<WindowState>
   newTab(): Promise<void>
   closeTab(tabId: string): Promise<void>

@@ -1,11 +1,15 @@
-<!-- A conversation: its transcript, task list, pending requests and the composer, and beside them a pane with the review it is in, its browser or its terminal. -->
+<!-- A conversation: its transcript, task list, pending requests and the composer; left of them the code view of its folder, and right of them a pane with the review it is in, its browser or its terminal. -->
 <script lang="ts">
-  import { untrack } from 'svelte'
+  import { setContext, untrack } from 'svelte'
   import { modelRow } from '@shared/models'
   import type { ThemeId } from '@shared/themes'
   import type { BrowserState, TerminalState } from '@shared/types'
   import { parseWrapUp, WRAP_UP_TOOL } from '@shared/wrap-up'
   import BrowserPane from './BrowserPane.svelte'
+  import CodeViewPanel from './code/CodeView.svelte'
+  import { FILES, parseFileRef, resolvePath } from './code/filerefs'
+  import type { FileContext } from './code/filerefs'
+  import { CodeView } from './code/view.svelte'
   import Composer from './Composer.svelte'
   import Icon from './Icon.svelte'
   import Dock from './Dock.svelte'
@@ -43,6 +47,8 @@
   /** The theme the pointer is on in the theme menu. */
   let preview = $state<ThemeId | null>(null)
   let seenReview: string | null = null
+  /** The code view of the conversation's folder, which also watches the folder for the code toggle's badge. */
+  let code = $state<CodeView | null>(null)
   let browserWasOpen = false
 
   const meta = $derived(c.meta)
@@ -65,6 +71,8 @@
     return null
   })
   const browser = $derived(c.browser)
+  /** Files git sees changed, staged and unstaged. */
+  const changeCount = $derived(code?.folder.status?.count ?? 0)
   const browserOpen = $derived((browser?.tabs.length ?? 0) > 0)
   const turnStartedAt = $derived(meta?.status === 'running' ? meta.turnStartedAt : null)
   // A copy of the whole conversation would end inside a running turn; "Fork from here" works on finished ones.
@@ -94,6 +102,51 @@
     browserWasOpen = open
   })
 
+  $effect(() => {
+    const folder = cwd
+    if (!folder) return
+    const view = untrack(() => new CodeView(id, folder))
+    code = view
+    return () => {
+      view.dispose()
+      code = null
+    }
+  })
+
+  const fileSets = new WeakMap<string[], Set<string>>()
+  /** The folder's files for references to them, as quick open lists them (listed again after changes). */
+  async function folderFiles(): Promise<Set<string>> {
+    const list = await (code?.folder.fileList() ?? Promise.resolve([])).catch(() => [])
+    let set = fileSets.get(list)
+    if (!set) fileSets.set(list, (set = new Set(list)))
+    return set
+  }
+
+  setContext<FileContext>(FILES, {
+    get cwd() {
+      return cwd
+    },
+    files: folderFiles,
+  })
+
+  /** A file reference clicked in the transcript: the file at its line in the code view, or a folder in the explorer. */
+  async function openFileRef(ref: string): Promise<void> {
+    const view = code
+    if (!view) return
+    const { path, line, column } = parseFileRef(ref)
+    const abs = resolvePath(view.cwd, path).replace(/(.)\/$/, '$1')
+    const rel = abs.startsWith(`${view.cwd}/`) ? abs.slice(view.cwd.length + 1) : null
+    const files = await folderFiles()
+    if (rel !== null && !files.has(rel) && [...files].some((f) => f.startsWith(`${rel}/`))) view.revealFolder(abs)
+    else view.openFile(abs, { preview: true, line, column })
+  }
+
+  function toggleCode(): void {
+    if (!code) return
+    if (code.open) code.open = false
+    else code.show()
+  }
+
   function toggle(which: 'review' | 'browser' | 'terminal'): void {
     pane = pane === which ? null : which
   }
@@ -105,6 +158,13 @@
   }
 
   $effect(() => api.onTerminalShow((conversationId, tabId) => conversationId === id && showTerminal(tabId)))
+  $effect(() => {
+    const target = root
+    if (!target) return
+    const onFile = (e: Event): void => void openFileRef(String((e as CustomEvent<string>).detail))
+    target.addEventListener('filelink', onFile)
+    return () => target.removeEventListener('filelink', onFile)
+  })
   $effect(() => {
     const target = root
     if (!target) return
@@ -138,6 +198,13 @@
 {:else}
   <div class="conversation" data-theme={shownTheme} bind:this={root}>
     <header class="conversation-header">
+      <!-- Leftmost, over the code view it opens. -->
+      <div class="pane-toggles">
+        <button class={['ghost icon-button tip-start', code?.open && 'pane-on']} aria-label="Code" data-tip="Code" onclick={toggleCode}>
+          <Icon name="code" />
+          {#if changeCount > 0}<span class="code-badge">{changeCount > 999 ? '999+' : changeCount}</span>{/if}
+        </button>
+      </div>
       {#if renaming !== null}
         <!-- svelte-ignore a11y_autofocus -->
         <input
@@ -171,6 +238,7 @@
       </div>
     </header>
     <div class="conversation-body">
+      {#if code}<CodeViewPanel view={code} theme={shownTheme} {visible} />{/if}
       <div class="conversation-main">
         <div
           class="transcript"

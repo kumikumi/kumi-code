@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { IPC } from '@shared/types'
+import type { GitStatus } from '@shared/code'
 import type { BrowserState, ConversationMeta, DragHover, KumiApi, Review, TerminalState, TranscriptItem, UsageWindow, WindowState } from '@shared/types'
 
 function on<T extends unknown[]>(channel: string, cb: (...args: T) => void): () => void {
@@ -54,6 +55,25 @@ const api: KumiApi = {
   terminalInput: (id, tabId, data) => ipcRenderer.send(IPC.terminalInput, id, tabId, data),
   terminalResize: (id, tabId, cols, rows) => ipcRenderer.send(IPC.terminalResize, id, tabId, cols, rows),
   watchTerminals: (id, watching) => ipcRenderer.send(IPC.watchTerminals, id, watching),
+  watchFolder: (cwd, watching) => ipcRenderer.send(IPC.watchFolder, cwd, watching),
+  gitStatus: (cwd) => ipcRenderer.invoke(IPC.gitStatus, cwd),
+  listDir: (cwd, dir) => ipcRenderer.invoke(IPC.listDir, cwd, dir),
+  readSource: (source) => ipcRenderer.invoke(IPC.readSource, source),
+  writeFile: (path, text) => ipcRenderer.invoke(IPC.writeFile, path, text),
+  createFile: (path, dir) => ipcRenderer.invoke(IPC.createFile, path, dir),
+  renamePath: (from, to) => ipcRenderer.invoke(IPC.renamePath, from, to),
+  trashPath: (path) => ipcRenderer.invoke(IPC.trashPath, path),
+  revealPath: (path) => ipcRenderer.send(IPC.revealPath, path),
+  listFiles: (cwd) => ipcRenderer.invoke(IPC.listFiles, cwd),
+  search: (cwd, query) => ipcRenderer.invoke(IPC.search, cwd, query),
+  git: (cwd, op) => ipcRenderer.invoke(IPC.git, cwd, op),
+  gitLog: (cwd, count) => ipcRenderer.invoke(IPC.gitLog, cwd, count),
+  commitChanges: (cwd, hash) => ipcRenderer.invoke(IPC.commitChanges, cwd, hash),
+  branches: (cwd) => ipcRenderer.invoke(IPC.branches, cwd),
+  blame: (root, path, text, rev) => ipcRenderer.invoke(IPC.blame, root, path, text, rev),
+  commitMessage: (root, hash) => ipcRenderer.invoke(IPC.commitMessage, root, hash),
+  showMenu: (items) => ipcRenderer.invoke(IPC.showMenu, items),
+  ask: (message, detail, buttons) => ipcRenderer.invoke(IPC.ask, message, detail, buttons),
   onWindowState: (cb) => on<[WindowState]>(IPC.evWindowState, cb),
   onConversationMeta: (cb) => on<[string, ConversationMeta, number]>(IPC.evConversationMeta, cb),
   onConversationItems: (cb) => on<[string, TranscriptItem[], number]>(IPC.evConversationItems, cb),
@@ -66,6 +86,7 @@ const api: KumiApi = {
   onTerminals: (cb) => on<[string, TerminalState]>(IPC.evTerminals, cb),
   onTerminalOutput: (cb) => on<[string, string, string, number]>(IPC.evTerminalOutput, cb),
   onTerminalShow: (cb) => on<[string, string]>(IPC.evTerminalShow, cb),
+  onFolderChanged: (cb) => on<[string, string[] | null, GitStatus | null]>(IPC.evFolderChanged, cb),
 }
 
 contextBridge.exposeInMainWorld('kumi', api)

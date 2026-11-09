@@ -7,6 +7,8 @@ import { Store } from '../core/store'
 import type { ThemeId } from '@shared/themes'
 import { IPC } from '@shared/types'
 import type { BrowserAction, BrowserInput, EffortLevel, ImageData, ImageMenuTarget, PermissionMode, RequestResponse, TabStripGeometry, TerminalAction } from '@shared/types'
+import type { GitOp, MenuItem, SearchQuery, Source } from '@shared/code'
+import { ask, Code, showMenu } from './code'
 import { TabDrag } from './drag'
 import { popupImageMenu } from './image-menu'
 import { Workspace } from './workspace'
@@ -28,6 +30,7 @@ app.whenReady().then(() => {
     rendererFile: join(import.meta.dirname, '../renderer/index.html'),
   })
   const drag = new TabDrag(workspace)
+  const code = new Code()
   const win = (e: IpcMainInvokeEvent | IpcMainEvent) => workspace.winOf(BrowserWindow.fromWebContents(e.sender))
 
   ipcMain.handle(IPC.getWindowState, (e) => workspace.windowState(win(e)))
@@ -88,6 +91,30 @@ app.whenReady().then(() => {
   ipcMain.on(IPC.terminalResize, (_e, id: string, tabId: string, cols: number, rows: number) => workspace.terminalResize(id, tabId, cols, rows))
   ipcMain.on(IPC.watchTerminals, (e, id: string, watching: boolean) => workspace.watchTerminals(e.sender.id, id, watching))
 
+  ipcMain.on(IPC.watchFolder, (e, cwd: string, watching: boolean) => code.watchFolder(e.sender.id, cwd, watching))
+  ipcMain.handle(IPC.gitStatus, (_e, cwd: string) => code.gitStatus(cwd))
+  ipcMain.handle(IPC.listDir, (_e, cwd: string, dir: string) => code.listDir(cwd, dir))
+  ipcMain.handle(IPC.readSource, (_e, source: Source) => code.readSource(source))
+  ipcMain.handle(IPC.writeFile, (_e, path: string, text: string) => code.writeFile(path, text))
+  ipcMain.handle(IPC.createFile, (_e, path: string, dir: boolean) => code.createFile(path, dir))
+  ipcMain.handle(IPC.renamePath, (_e, from: string, to: string) => code.renamePath(from, to))
+  ipcMain.handle(IPC.trashPath, (e, path: string) => code.trashPath(win(e).win, path))
+  ipcMain.on(IPC.revealPath, (_e, path: string) => code.revealPath(path))
+  ipcMain.handle(IPC.listFiles, (_e, cwd: string) => code.listFiles(cwd))
+  ipcMain.handle(IPC.search, (e, cwd: string, query: SearchQuery) => code.search(e.sender.id, cwd, query))
+  ipcMain.handle(IPC.git, (e, cwd: string, op: GitOp) => code.git(win(e).win, cwd, op))
+  ipcMain.handle(IPC.gitLog, (_e, cwd: string, count: number) => code.gitLog(cwd, count))
+  ipcMain.handle(IPC.commitChanges, (_e, cwd: string, hash: string) => code.commitChanges(cwd, hash))
+  ipcMain.handle(IPC.branches, (_e, cwd: string) => code.branches(cwd))
+  ipcMain.handle(IPC.blame, (_e, root: string, path: string, text: string | null, rev: string | null) => code.blame(root, path, text, rev))
+  ipcMain.handle(IPC.commitMessage, (_e, root: string, hash: string) => code.commitMessage(root, hash))
+  ipcMain.handle(IPC.showMenu, (e, items: MenuItem[]) => showMenu(win(e).win, items))
+  ipcMain.handle(IPC.ask, (e, message: string, detail: string, buttons: string[]) => ask(win(e).win, message, detail, buttons))
+  app.on('browser-window-created', (_e, created) => {
+    const contentsId = created.webContents.id
+    created.on('closed', () => code.forget(contentsId))
+  })
+
   // The end-to-end tests drive the browser tools without a model.
   if (import.meta.env.MODE === 'e2e') Object.assign(globalThis, { kumiWorkspace: workspace })
 
@@ -97,7 +124,10 @@ app.whenReady().then(() => {
   app.on('activate', () => {
     if (workspace.allWindows().length === 0) workspace.newWindow()
   })
-  app.on('before-quit', () => workspace.beginQuit())
+  app.on('before-quit', () => {
+    workspace.beginQuit()
+    code.destroy()
+  })
 })
 
 app.on('window-all-closed', () => {

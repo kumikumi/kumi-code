@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { duration, fileSize, groupByDate, messageTime } from './util'
+import { duration, fileSize, groupByDate, messageTime, relativeTime } from './util'
 
 describe('fileSize', () => {
   it('reads like Finder', () => {
@@ -66,5 +66,19 @@ describe('duration', () => {
     expect(duration(42_900)).toBe('42s')
     expect(duration(185_000)).toBe('3m 5s')
     expect(duration(4_330_000)).toBe('1h 12m')
+  })
+})
+
+describe('relativeTime', () => {
+  const now = Date.UTC(2026, 10, 6, 12)
+  it('says how long ago, in the largest whole unit', () => {
+    expect(relativeTime(now - 3000, now)).toBe('just now')
+    expect(relativeTime(now - 42_000, now)).toBe('42 seconds ago')
+    expect(relativeTime(now - 60_000, now)).toBe('a minute ago')
+    expect(relativeTime(now - 5 * 3600_000, now)).toBe('5 hours ago')
+    expect(relativeTime(now - 30 * 3600_000, now)).toBe('yesterday')
+    expect(relativeTime(now - 9 * 86400_000, now)).toBe('9 days ago')
+    expect(relativeTime(now - 75 * 86400_000, now)).toBe('3 months ago')
+    expect(relativeTime(now - 800 * 86400_000, now)).toBe('2 years ago')
   })
 })

@@ -1,0 +1,270 @@
+/* ---- code view ----
+   Laid out after VS Code: a side pane under its tabs, and the editor. Surfaces follow the
+   conversation's theme; git's colors are VS Code's gitDecoration colors. */
+.code-view {
+  position: relative; flex: 0 1 auto; min-width: 360px; min-height: 0; display: flex;
+  border-right: 1px solid var(--border); background: var(--bg);
+}
+.code-resize { position: absolute; top: 0; bottom: 0; right: -4px; width: 7px; z-index: 30; cursor: col-resize; }
+.code-resize:hover, .code-resize.active { background: linear-gradient(to right, transparent 3px, var(--accent) 3px, var(--accent) 5px, transparent 5px); }
+.code-sash { flex: none; position: relative; z-index: 5; width: 5px; margin: 0 -3px 0 -2px; cursor: col-resize; }
+.code-sash:hover, .code-sash.active { background: linear-gradient(to right, transparent 2px, var(--accent) 2px, var(--accent) 4px, transparent 4px); }
+
+/* On the header's code toggle: over its top right corner. */
+.code-badge {
+  position: absolute; top: -5px; right: -7px; min-width: 15px; height: 15px; padding: 0 3px; border-radius: 8px;
+  background: var(--accent); color: var(--on-accent); font-size: 9px; font-weight: 650; line-height: 15px; text-align: center;
+  font-variant-numeric: tabular-nums; pointer-events: none;
+}
+
+.side { flex: none; min-width: 0; display: flex; flex-direction: column; background: var(--strip); border-right: 1px solid var(--border); }
+/* The side pane's tabs, level with the editor's. Those whose names do not fit show their icons only. */
+.side-tabs { flex: none; display: flex; align-items: stretch; height: 35px; padding: 0 6px; overflow: hidden; border-bottom: 1px solid var(--border); }
+.side-tab {
+  position: relative; flex: none; display: flex; align-items: center; gap: 6px; padding: 0 9px;
+  background: transparent; border: 0; border-radius: 0; color: var(--faint); font-size: 12.5px; white-space: nowrap;
+}
+.side-tab:hover { background: transparent; color: var(--text); }
+.side-tab.active { color: var(--text-strong); }
+.side-tab.active::after { content: ''; position: absolute; left: 6px; right: 6px; bottom: -1px; height: 2px; border-radius: 1px; background: var(--accent); }
+.side-tab .icon { width: 16px; height: 16px; }
+.side-tab.unnamed .side-tab-label { display: none; }
+.side-tab-count {
+  flex: none; min-width: 16px; height: 16px; padding: 0 5px; border-radius: 8px; background: var(--accent); color: var(--on-accent);
+  font-size: 10px; font-weight: 650; line-height: 16px; text-align: center; font-variant-numeric: tabular-nums;
+}
+.side-show { flex: none; align-self: center; width: 28px; height: 28px; margin: 0 2px 0 4px; }
+.side-pane { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; font-size: 13px; }
+.side-head { flex: none; display: flex; align-items: center; gap: 1px; height: 35px; padding: 0 6px 0 14px; }
+.side-title {
+  min-width: 0; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.side-head .icon-button { width: 24px; height: 24px; visibility: hidden; }
+.side-pane:hover .side-head .icon-button, .side-head .icon-button:focus-visible, .side-head .icon-button.pane-on { visibility: visible; }
+.side-error { padding: 6px 14px; color: var(--red); font-size: 12px; white-space: pre-wrap; word-break: break-word; }
+.side-note { padding: 4px 14px; color: var(--faint); font-size: 12px; }
+.side-empty { padding: 4px 14px; color: var(--muted); font-size: 12.5px; line-height: 1.5; }
+.side-empty p { margin: 0 0 12px; }
+.side-empty button { width: 100%; }
+.side-progress {
+  position: absolute; top: 0; left: 0; right: 0; height: 2px; z-index: 2;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent) no-repeat; background-size: 40% 100%;
+  animation: side-progress 1.1s linear infinite;
+}
+@keyframes side-progress { from { background-position: -60% 0; } to { background-position: 160% 0; } }
+
+/* ---- trees: the explorer, search results, changes ---- */
+.tree { flex: 1; min-height: 0; overflow-y: auto; outline: none; padding-bottom: 8px; }
+.scm-body .tree, .search-results.tree { flex: none; overflow: visible; padding-bottom: 0; }
+.search-results.tree { flex: 1; overflow-y: auto; padding-bottom: 8px; }
+.tree-row {
+  display: flex; align-items: center; gap: 5px; height: 22px; padding-right: 10px; color: var(--text);
+  white-space: nowrap; user-select: none; cursor: pointer; outline: none;
+}
+.tree-row:hover { background: var(--bg-hover); }
+.tree-row.selected { background: var(--bg-active); }
+.tree:focus .tree-row.selected { box-shadow: inset 0 0 0 1px var(--accent); }
+.tree-twistie { flex: none; width: 16px; height: 16px; display: grid; place-items: center; color: var(--muted); }
+.tree-twistie .icon { width: 14px; height: 14px; }
+.file-icon { width: 15px; height: 15px; stroke-width: 1.3; }
+.tree-name { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.tree-description { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--faint); font-size: 12px; }
+.tree-row.ignored .tree-name { color: var(--faint); }
+.tree-row.editing { cursor: default; }
+.tree-row.editing:hover { background: transparent; }
+.tree-input { flex: 1; min-width: 0; height: 20px; padding: 0 4px; font-size: 13px; border-radius: 3px; }
+.git-letter { flex: none; margin-left: auto; min-width: 12px; text-align: center; font-size: 11.5px; }
+.git-M, .git-T { --git: #e2c08d; }
+.git-A { --git: #81b88b; }
+.git-U, .git-R, .git-C { --git: #73c991; }
+.git-D { --git: #c74e39; }
+.git-conflict { --git: #e4676b; }
+.tree-row[class*='git-'] .tree-name, .tree-row[class*='git-'] .git-letter { color: var(--git); }
+.tree-row.deleted .tree-name { text-decoration: line-through; }
+.row-buttons { flex: none; display: none; align-items: center; }
+.tree-row:hover .row-buttons { display: flex; }
+.row-buttons .icon-button { width: 22px; height: 22px; }
+.row-buttons .icon { width: 14px; height: 14px; }
+
+/* ---- source control ---- */
+.scm-sections { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.scm-section { position: relative; min-height: 0; display: flex; flex-direction: column; }
+.scm-changes { flex: 1 1 0; min-height: 80px; }
+.scm-changes.collapsed { flex: none; min-height: 0; }
+.scm-graph { flex: 0 0 auto; min-height: 0; border-top: 1px solid var(--border); }
+.scm-changes.collapsed + .scm-graph:not(.collapsed) { flex: 1 1 0; }
+.scm-sash { position: absolute; top: -4px; left: 0; right: 0; height: 7px; z-index: 5; cursor: row-resize; }
+.scm-sash:hover { background: linear-gradient(transparent 3px, var(--accent) 3px, var(--accent) 5px, transparent 5px); }
+.section-head {
+  flex: none; display: flex; align-items: center; gap: 3px; width: 100%; height: 24px; padding: 0 10px 0 4px;
+  background: transparent; border: 0; border-radius: 0; text-align: left;
+  font-size: 11px; font-weight: 650; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text);
+}
+.section-head:hover { background: transparent; }
+.section-head .icon { width: 15px; height: 15px; }
+.scm-body { flex: 1; min-height: 0; overflow-y: auto; padding-bottom: 8px; }
+.scm-head { gap: 4px; padding-left: 12px; }
+.scm-branch { min-width: 0; display: inline-flex; align-items: center; gap: 5px; color: var(--text); font-size: 12.5px; }
+.scm-branch > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.scm-branch .icon { width: 14px; height: 14px; color: var(--muted); }
+/* What the branch can pull and push; each pulls or pushes it. */
+.scm-pill {
+  flex: none; display: inline-flex; align-items: center; gap: 2px; height: 20px; padding: 0 7px 0 5px; border-radius: 10px;
+  background: var(--bg-active); color: var(--text-strong); font-size: 11.5px; font-variant-numeric: tabular-nums;
+}
+.scm-pill:hover:not(:disabled) { background: var(--accent); color: var(--on-accent); }
+.scm-pill .icon { width: 12px; height: 12px; stroke-width: 1.6; }
+.commit-box { display: flex; flex-direction: column; gap: 7px; padding: 4px 12px 10px 20px; }
+.commit-box textarea { resize: none; min-height: 28px; padding: 4px 8px; font-size: 13px; line-height: 18px; overflow-y: auto; }
+.commit-button { display: flex; }
+.commit-button .primary { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 4px 10px; border-radius: 4px; }
+.commit-button .primary:first-child { flex: 1; }
+.commit-button .primary:first-child:not(:only-child) { border-radius: 4px 0 0 4px; }
+.commit-button .commit-more { flex: none; width: 28px; padding: 0; border-radius: 0 4px 4px 0; border-left: 1px solid color-mix(in oklab, var(--on-accent) 30%, transparent); }
+.commit-button .icon { width: 15px; height: 15px; }
+.scm-group { padding-left: 4px; }
+.scm-group .tree-name { font-size: 12.5px; }
+.scm-row { padding-left: 24px; }
+.scm-count, .search-count {
+  flex: none; margin-left: auto; min-width: 18px; height: 18px; padding: 0 6px; border-radius: 9px;
+  background: var(--bg-active); color: var(--text); font-size: 11px; line-height: 18px; text-align: center; font-variant-numeric: tabular-nums;
+}
+.row-buttons + .scm-count { margin-left: 4px; }
+
+/* ---- graph ---- */
+.graph { flex: 1; min-height: 0; overflow-y: auto; padding-bottom: 6px; }
+.graph-row { display: flex; align-items: center; gap: 6px; height: 22px; padding: 0 10px 0 4px; white-space: nowrap; cursor: pointer; user-select: none; outline: none; }
+.graph-row:hover { background: var(--bg-hover); }
+.graph-lanes { flex: none; display: block; overflow: visible; }
+.graph-lanes path { fill: none; stroke-width: 1.4; }
+.graph-node-ring { fill: var(--strip); stroke-width: 1.6; }
+.graph-subject { flex: 1 1 auto; min-width: 40px; overflow: hidden; text-overflow: ellipsis; color: var(--text); }
+.graph-author { margin-left: 6px; color: var(--faint); font-size: 12px; }
+/* Badges give way to the subject: each shrinks to its icon and the start of its name. */
+.graph-ref {
+  flex: 0 1 auto; min-width: 26px; max-width: 130px; display: inline-flex; align-items: center; gap: 3px; height: 17px; padding: 0 7px;
+  border-radius: 9px; overflow: hidden; font-size: 11px; font-weight: 500;
+}
+.graph-ref span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.graph-ref .icon { width: 11px; height: 11px; stroke-width: 1.6; }
+.graph-ref.head, .graph-ref.branch { background: #59a4f9; color: #0b1a2e; }
+.graph-ref.remote { background: #b180d7; color: #1e0f2b; }
+.graph-ref.tag { background: var(--bg-active); color: var(--text); }
+.graph-file { padding-left: 4px; }
+.graph-file .graph-lanes { margin-right: 10px; }
+.graph-loading { padding-left: 40px; }
+.graph-more { margin: 6px 0 0 12px; }
+
+/* ---- search ---- */
+.search-form { flex: none; display: flex; flex-direction: column; gap: 4px; padding: 0 10px 8px 14px; }
+.search-box { display: flex; align-items: center; gap: 1px; padding-right: 3px; background: var(--bg-input); border: 1px solid var(--border); border-radius: 6px; }
+.search-box:focus-within { outline: 2px solid var(--accent); outline-offset: -1px; }
+.search-box input { flex: 1; min-width: 0; height: 26px; padding: 0 8px; background: transparent; border: 0; }
+.search-box input:focus { outline: none; }
+.search-toggle {
+  flex: none; width: 22px; height: 20px; padding: 0; border: 1px solid transparent; border-radius: 4px;
+  background: transparent; color: var(--muted); font-size: 11.5px; font-weight: 600;
+}
+.search-toggle.word { text-decoration: underline; text-underline-offset: 2px; }
+.search-toggle.on { color: var(--text-strong); background: color-mix(in oklab, var(--accent) 22%, transparent); border-color: color-mix(in oklab, var(--accent) 70%, transparent); }
+.search-details-toggle { display: flex; justify-content: flex-end; margin: -1px -4px -2px 0; }
+.search-details-toggle .icon-button { width: 22px; height: 18px; }
+.search-field { display: flex; flex-direction: column; gap: 3px; font-size: 11.5px; color: var(--muted); }
+.search-field input { padding: 4px 8px; font-size: 12.5px; }
+.search-summary { display: flex; align-items: flex-start; gap: 6px; padding: 0 8px 6px 14px; color: var(--muted); font-size: 12px; line-height: 1.4; }
+.search-summary > span { flex: 1; min-width: 0; padding-top: 3px; }
+.search-summary .icon-button { flex: none; width: 22px; height: 22px; }
+.search-pane .search-form { padding-top: 10px; }
+.search-file { padding-left: 6px; }
+.search-match { padding-left: 42px; }
+.search-preview { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: pre; font-size: 12.5px; }
+/* VS Code's editor.findMatchHighlightBackground. */
+.search-preview mark { background: #ea5c0055; color: inherit; border-radius: 2px; }
+
+/* ---- editor ---- */
+.editor-area { position: relative; flex: 1; min-width: 0; display: flex; flex-direction: column; background: var(--bg); }
+.editor-tabs { flex: none; display: flex; height: 35px; background: var(--strip); overflow-x: auto; overflow-y: hidden; scrollbar-width: none; }
+.editor-tab {
+  position: relative; flex: none; display: flex; align-items: center; gap: 6px; max-width: 240px; padding: 0 5px 0 10px;
+  border-right: 1px solid var(--border); color: var(--muted); font-size: 13px; cursor: pointer; user-select: none; outline: none;
+}
+.editor-tab:hover { color: var(--text); }
+.editor-tab.active { background: var(--bg); color: var(--text-strong); }
+.editor-tab.active::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px; background: var(--accent); }
+.editor-tab.preview .editor-tab-title { font-style: italic; }
+.editor-tab.deleted .editor-tab-title { text-decoration: line-through; }
+.editor-tab-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.editor-tab-folder { color: var(--faint); font-size: 12px; white-space: nowrap; }
+.editor-tab-close {
+  flex: none; width: 20px; height: 20px; padding: 0; display: grid; place-items: center;
+  background: transparent; color: var(--muted); border-radius: 4px; visibility: hidden;
+}
+.editor-tab-close .icon { width: 13px; height: 13px; }
+.editor-tab-close:hover { background: var(--bg-hover); color: var(--text-strong); }
+.editor-tab:hover .editor-tab-close, .editor-tab.active .editor-tab-close, .editor-tab.dirty .editor-tab-close { visibility: visible; }
+/* Unsaved: a dot in the close button's place, the button again on hover. */
+.editor-tab.dirty:not(:hover) .editor-tab-close .icon { display: none; }
+.editor-tab.dirty:not(:hover) .editor-tab-close::after { content: ''; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+.editor-crumbs {
+  flex: none; display: flex; align-items: center; gap: 2px; height: 24px; padding: 0 12px; overflow: hidden;
+  color: var(--muted); font-size: 12px; white-space: nowrap;
+}
+.editor-crumbs .icon { width: 12px; height: 12px; color: var(--faint); }
+.editor-crumbs-detail { margin-left: 8px; color: var(--faint); }
+.editor-position { flex: none; padding-left: 10px; color: var(--faint); font-variant-numeric: tabular-nums; }
+.editor-body { position: relative; flex: 1; min-height: 0; }
+.editor-host { position: absolute; inset: 0; }
+/* The editor not shown keeps its size, so a tab is laid out and scrolled to its place before it shows.
+   Transparent and behind rather than visibility: hidden, which Monaco's diff editor sets back on its parts. */
+.editor-body { isolation: isolate; }
+.editor-host[hidden] { display: block !important; opacity: 0; z-index: -1; }
+.editor-other { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 24px; overflow: auto; }
+.editor-other img {
+  max-width: 100%; max-height: calc(100% - 30px); object-fit: contain;
+  background: repeating-conic-gradient(#2c2c2c 0 25%, #383838 0 50%) 0 0 / 16px 16px;
+}
+.editor-note { max-width: 420px; color: var(--muted); font-size: 12.5px; text-align: center; line-height: 1.5; }
+.editor-watermark { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--faint); font-size: 13px; }
+.editor-watermark dl { display: grid; grid-template-columns: auto auto; align-items: center; gap: 12px 14px; margin: 0 0 8vh; }
+.editor-watermark dt { text-align: right; }
+.editor-watermark dd { margin: 0; display: flex; gap: 3px; }
+kbd {
+  min-width: 20px; padding: 1px 5px; border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 4px;
+  background: var(--bg-raised); color: var(--muted); font: inherit; font-size: 11px; text-align: center;
+}
+
+/* ---- quick open ---- */
+.quick-open {
+  position: absolute; top: 6px; left: 50%; transform: translateX(-50%); z-index: 60; width: min(620px, calc(100% - 24px));
+  display: flex; flex-direction: column; padding: 6px; background: var(--bg-raised); border: 1px solid var(--border);
+  border-radius: 8px; box-shadow: 0 10px 28px rgba(0, 0, 0, 0.5);
+}
+.quick-open input { width: 100%; padding: 5px 8px; font-size: 13px; }
+.quick-list { max-height: min(440px, 60vh); overflow-y: auto; margin-top: 4px; }
+.quick-list:empty { display: none; }
+.quick-section { padding: 2px 8px 2px; color: var(--faint); font-size: 11px; text-align: right; }
+.quick-item { display: flex; align-items: center; gap: 6px; height: 24px; padding: 0 8px; border-radius: 4px; font-size: 13px; white-space: nowrap; cursor: pointer; outline: none; }
+.quick-item.selected { background: var(--bg-active); }
+.quick-label { flex: none; max-width: 65%; overflow: hidden; text-overflow: ellipsis; color: var(--text-strong); }
+.quick-description { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--faint); font-size: 12px; }
+/* VS Code's list.highlightForeground. */
+.quick-label b, .quick-description b { color: #2aaaff; font-weight: 600; }
+.quick-keys { flex: none; margin-left: auto; color: var(--muted); font-size: 12px; }
+.quick-empty { padding: 6px 8px; color: var(--muted); font-size: 12.5px; }
+
+/* VS Code's quick diff in the editor's gutter (its Dark Modern editorGutter colors): a bar on added and
+   modified lines, a triangle where lines were deleted. */
+.monaco-editor .dirty-added, .monaco-editor .dirty-modified { width: 3px !important; margin-left: 4px; }
+.monaco-editor .dirty-added { background: #2ea043; }
+.monaco-editor .dirty-modified { background: #0078d4; }
+.monaco-editor .dirty-deleted::after {
+  content: ''; position: absolute; left: 4px; bottom: -4px; z-index: 1;
+  border-left: 5px solid #f85149; border-top: 4px solid transparent; border-bottom: 4px solid transparent;
+}
+.monaco-editor .dirty-deleted.top::after { top: -4px; bottom: auto; }
+/* GitLens's current line blame, after the line's text. */
+.monaco-editor .blame-inline { margin-left: 3em; color: var(--faint); opacity: 0.8; }
+
+/* Monaco keeps its own look against the app's element styles. */
+.monaco-editor textarea:focus, .monaco-editor input:focus { outline: none; }

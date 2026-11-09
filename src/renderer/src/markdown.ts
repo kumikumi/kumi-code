@@ -4,10 +4,22 @@
 import DOMPurify from 'dompurify'
 import { Marked } from 'marked'
 import type { Highlighter } from 'shiki'
+import { isFileHref, looksLikeFileRef, parseFileRef, resolvePath } from './code/filerefs'
+import type { FileContext } from './code/filerefs'
 
 const THEME = 'github-dark-default'
 
-const marked = new Marked({ gfm: true, renderer: { code: ({ text, lang }) => codeBlockHtml(text, lang ?? '') } })
+const marked = new Marked({
+  gfm: true,
+  renderer: {
+    code: ({ text, lang }) => codeBlockHtml(text, lang ?? ''),
+    // A link to a file of the project opens it in the code view rather than the browser.
+    link({ href, title, tokens }) {
+      if (!isFileHref(href)) return false
+      return `<a href="#" class="file-link" data-file="${escape(href)}" title="${escape(title ?? href)}">${this.parser.parseInline(tokens)}</a>`
+    },
+  },
+})
 
 export function markdownHtml(text: string): string {
   return DOMPurify.sanitize(marked.parse(text, { async: false }))
@@ -21,10 +33,17 @@ export function codeBlockHtml(code: string, lang: string): string {
 /**
  * Clicks in rendered HTML: copy buttons, and links, which open in the browser. A link to
  * a terminal tab (#terminal/<tab_id>) raises a `terminallink` event with the tab's id for
- * the conversation to show it.
+ * the conversation to show it, and a file reference (a link to a file, or inline code
+ * `linkFileRefs` marked) a `filelink` event with the reference, for the code view.
  */
 export function onRichClick(e: MouseEvent): void {
   const target = e.target as HTMLElement
+  const file = target.closest<HTMLElement>('[data-file]')
+  if (file) {
+    e.preventDefault()
+    file.dispatchEvent(new CustomEvent('filelink', { bubbles: true, detail: file.dataset.file }))
+    return
+  }
   const copy = target.closest('[data-copy]')
   if (copy) void navigator.clipboard.writeText(copy.closest('.codeblock')?.querySelector('pre')?.textContent ?? '')
   const link = target.closest('a')
@@ -47,6 +66,21 @@ export function highlightBlocks(root: HTMLElement): void {
       },
       (err: unknown) => console.error('Highlighting failed', err),
     )
+  }
+}
+
+/** Marks inline code under `root` that names a file of the folder (`src/foo.ts:42`) as a reference to open. */
+export async function linkFileRefs(root: HTMLElement, context: FileContext): Promise<void> {
+  const candidates = [...root.querySelectorAll<HTMLElement>('code')].filter((c) => !c.closest('pre, a') && looksLikeFileRef(c.textContent ?? ''))
+  if (candidates.length === 0) return
+  const files = await context.files()
+  for (const code of candidates) {
+    const ref = code.textContent ?? ''
+    const path = resolvePath(context.cwd, parseFileRef(ref).path)
+    if (!code.isConnected || !path.startsWith(`${context.cwd}/`) || !files.has(path.slice(context.cwd.length + 1))) continue
+    code.classList.add('file-ref')
+    code.dataset.file = ref
+    code.title = 'Open in the code view'
   }
 }
 

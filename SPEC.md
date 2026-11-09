@@ -21,14 +21,18 @@ What the code does, precisely. `README.md` is the short version.
   - `previews.ts` — `Previews`: dev servers from a project's `.claude/launch.json`.
   - `terminal-command.ts` — what `run_in_terminal` refuses to type, and the shell's parse check.
   - `terminal-input.ts` — `send_to_terminal`'s steps, checked, and key names → terminal bytes.
+  - `repo.ts` — the code view's git: status, staging, committing, pushing, files at a revision, the log,
+    blame.
+  - `files.ts` — the code view's files: folder listings, contents, and ripgrep for quick open and search.
 - `src/main/` — Electron main process: `workspace.ts` (windows, tabs, open conversations and
   their browsers and terminals), `drag.ts` (tabs dragged out of a strip), `index.ts` (IPC, menu,
   startup), `browser.ts` (`Browser`, `BrowserTab`: a conversation's offscreen tabs),
   `browser-tools.ts` (the `browser` MCP server), `browser-page.ts` (the helper the tools run inside
   a page), `terminal.ts` (`Terminals`, `TerminalTab`: a conversation's shells),
-  `terminal-tools.ts` (the `terminal` MCP server).
+  `terminal-tools.ts` (the `terminal` MCP server), `code.ts` (`Code`: the code view's watched folders,
+  file and git commands, native menus and dialogs).
 - `src/preload/` — the `window.kumi` bridge (`KumiApi` in `src/shared/types.ts`).
-- `src/shared/` — `types.ts` (everything that crosses IPC), `review.ts` (review rules the main
+- `src/shared/` — `types.ts` (everything that crosses IPC), `code.ts` (the code view's part of it), `review.ts` (review rules the main
   process and the renderer share), `wrap-up.ts` (reading a `wrap_up` call), `themes.ts` (the color
   themes; their colors are in the renderer's `styles.css`).
 - `src/renderer/` — Svelte 5 UI: `App.svelte` (a window), `TabStrip.svelte`, `NewTabPage.svelte`,
@@ -37,7 +41,12 @@ What the code does, precisely. `README.md` is the short version.
   `FindingDetails.svelte`, `RelayCard.svelte`, `ReviewPanel.svelte`, `Dock.svelte` (the pane beside
   the transcript), `BrowserPane.svelte`, `TerminalPane.svelte`, `NextStep.svelte`, `Icon.svelte` (line
   icons), `ThemePicker.svelte`; `state.svelte.ts`
-  (window and conversation state), `markdown.ts`, `tools.ts`, `util.ts`.
+  (window and conversation state), `markdown.ts`, `tools.ts`, `util.ts`. `code/`: the code view —
+  `CodeView.svelte`, `Explorer.svelte`, `SearchPane.svelte`, `ScmPane.svelte`, `ScmGraph.svelte`,
+  `EditorArea.svelte`, `QuickOpen.svelte`, `FileIcon.svelte`, `code.css`; `view.svelte.ts` (a
+  conversation's view), `folder.svelte.ts` (a folder's status and changes), `docs.svelte.ts` (the
+  editor's models), `monaco.ts` (loading Monaco, highlighting, themes), `annotations.ts` (the
+  gutter's changes and the line's blame), `changes.ts`, `fuzzy.ts`, `graph.ts`.
 - `resources/icon.svg` — the app icon; `scripts/icon.mjs` renders it in Electron into
   `resources/icon.icns`. `scripts/brand-electron.mjs`, run by `postinstall` on macOS, renames the
   development `Electron.app` to `Kumi Code.app` (the Dock titles a running app after its bundle's
@@ -168,7 +177,8 @@ What the code does, precisely. `README.md` is the short version.
   conversation's later events.
 - Markdown: `marked` (GitHub-flavoured) to HTML, sanitized with DOMPurify (it is model output).
   Code blocks get a language label and a copy button, and are highlighted with Shiki (JavaScript
-  regex engine, `github-dark-default`) once the text stops streaming. Links open in the browser.
+  regex engine, `github-dark-default`) once the text stops streaming. Links open in the browser,
+  but those to files, which open in the code view (see Code view).
 - Callbacks the main process calls through the context bridge return nothing: the bridge clones a
   return value back, and a Svelte state proxy cannot be cloned.
 - Stored user messages that Claude Code injected are classified: `<command-name>` → the command as
@@ -397,6 +407,141 @@ What the code does, precisely. `README.md` is the short version.
   section tells the agent that every tab is open to it through `send_to_terminal`, and asks it to
   link tabs that way.
 
+## Code view
+
+- Each conversation has a code view of its folder, left of the transcript: the side pane, under tabs
+  for Explorer, Search and Source Control (level with the editor's tabs; each named while the names
+  fit, else the inactive ones lose their names from the right, and the active one last), and the
+  editor. The code toggle (`</>`), leftmost in the header (left of the title, above the view), opens
+  and closes it; the first time, the view opens on Source Control when there are changes, else on
+  Explorer; its badge counts the changes git sees in the folder's repository (`GitStatus.count`:
+  staged, unstaged and untracked entries and conflicts, so a file both staged and changed counts
+  twice, as in VS Code's badge), as does the Source Control tab. Widths are kept in `localStorage`,
+  shared by a window's views: the view's (`codeViewWidth`; 60 % of the window by default, at least
+  360 px; the transcript keeps 320 px) and the side pane's (`codeSideWidth`, 260 px); the graph's
+  height as `codeGraphHeight`. ⌘B hides the side bar; a button in the editor's tab strip shows it
+  again.
+- Watching (`src/main/code.ts`): a folder is watched while a window shows a conversation in it
+  (`watchFolder`, counted per renderer, released when its window closes). The repository's top
+  folder (the folder itself outside one), and a git folder outside it, are watched recursively with
+  `fs.watch`; changes in git's `objects/`, `logs/` and `*.lock` are ignored. Changes settle for 250 ms
+  (at most 1 s after the first), then `git status --porcelain=v2 -z --branch --untracked-files=all`
+  runs (one at a time, once more if files changed meanwhile), and the changed paths (null past 1000)
+  and the status go to the folder's windows. Git runs with `GIT_OPTIONAL_LOCKS=0`, so reading the
+  status never rewrites the index (which would wake the watcher), and `GIT_TERMINAL_PROMPT=0`. The
+  repository's folder is reached from the conversation's (`rev-parse --show-cdup`), through its
+  symlinks, so its paths match the explorer's. Each list of changes stops at 5000.
+- Explorer: the folder's tree, a folder loaded when opened (folders first, in natural order; VS Code's
+  `files.exclude` left out), git's letter and color on changed files (the working tree's over the
+  index's), a dot and the color on folders holding changes (the most serious), and files git ignores
+  dimmed (`git check-ignore`). Folders that change on disk are listed again. A click opens a file in
+  a preview tab, a double click keeps it. New file and new folder (a name with slashes makes the
+  folders on the way), rename (F2), delete to the Trash (⌘⌫, after confirming), reveal in Finder,
+  copy path; arrow keys, Enter and Space. The active editor's file is revealed and selected
+  (VS Code's `explorer.autoReveal`).
+- Search (⇧⌘F, seeded with the editor's selection on one line): ripgrep, as in VS Code — the SDK's
+  bundled Claude Code binary, which is ripgrep when started as `rg` (`argv0`) — with VS Code's
+  defaults: hidden files in, symlinks followed, ignore files respected, `files.exclude` and
+  `search.exclude` (`node_modules`, `bower_components`) out; match case, whole word, regular
+  expression (`--engine=auto`); files to include and exclude (comma-separated globs; a plain name
+  matches a file or folder anywhere). It searches 300 ms after typing; a new search kills the
+  window's previous one in the folder. At most 10 000 matches; ripgrep's byte offsets become UTF-16
+  columns. Results group by file; a match opens its file at it in a preview tab.
+- Quick open (⌘P): the files ripgrep lists (`rg --files`, the same filters; at most 200 000; listed
+  again after files change), ranked by a fuzzy score after VS Code's (characters in order; runs,
+  starts of words and path segments, and the same case score; a match in the name beats one over
+  the path; words separated by spaces each match; a query with a slash matches the path). Empty, it
+  lists the files opened in this view, latest first. `name:line:column` goes there. `>` lists
+  commands (⇧⌘P: save, close, the side panes, git's commands), `:` goes to a line of the active
+  editor (⌃G), and a pick list (branches for *Checkout to…*) uses the same box.
+- Source Control (⌃⇧G), after VS Code's, with pull and push where VS Code syncs: the branch, with
+  buttons for the commits it is behind (↓, pulls) and ahead (↑, pushes) by, as of the last fetch;
+  the commit message (⌘Enter commits) and the Commit button, whose menu has Commit (Amend) and
+  Commit & Push. With nothing to commit the button says what it does instead: *Pull N commits* while
+  the branch is behind (a push is refused until then), *Push N commits* while it is ahead, *Push
+  <branch> to <remote>* for a branch without an upstream when there is a remote (origin, else the
+  first; `GitStatus.remote`). Merge Changes, Staged Changes and Changes, each file with
+  open-file, discard, stage or unstage buttons and a context menu; the groups' buttons act on all.
+  Committing with nothing staged offers to stage everything first. Discarding asks first; tracked
+  files go back to the index (`git checkout --`), untracked ones to the Trash. Unstaging is `git
+  reset` (`git rm --cached` before the first commit), with a rename's old path. Pushing a branch
+  without an upstream pushes it to that remote with `-u`. Pulling is `git pull`, so the user's git
+  settings (`pull.rebase`) apply. The pane's menu: pull, push, fetch, amend, checkout to a branch,
+  stage, unstage and discard all. Outside a repository it
+  offers Initialize Repository. A command's failure shows its stderr in the pane, which opens for it.
+- Graph (below the changes; its edge resizes it): the latest 100 commits of HEAD and its upstream
+  (`git log --topo-order --decorate=full`), more on request, in lanes (`graph.ts`): a commit on the
+  leftmost lane reaching it, its first parent continuing that lane unless a lane to its left already
+  goes there, other parents branching off; VS Code's lane colors; HEAD as a ring, a merge hollow;
+  local branches, remote ones and tags as badges; the author after the subject. Which commits are open,
+  and how many the graph lists, last as long as the view. A commit opens to the
+  files it changed against its first parent (`git diff-tree -M`), and a file to that diff.
+- Editor: Monaco, loaded when a code view first opens, without language services: Shiki's TextMate
+  grammars (its JavaScript regex engine, forgiving) tokenize each line into tokens named after
+  Dark+'s colors and font styles, which the Monaco theme colors; the theme's surfaces come from the
+  conversation's theme. Monaco's own language definitions give comments, brackets and indentation.
+  A model is a file (`file:` URI) or a file at a revision (`git:` URI, read with `git cat-file`),
+  shared by the window's tabs and disposed with the last one. A file opens as text, an image, or a
+  notice (binary: a NUL byte in its first 8000 bytes; over 20 MB). Diffs ignore changes of leading and
+  trailing whitespace and show inline when the editor is narrower than 900 px. A tab shows already
+  at its place, never at the top or empty for a frame: as in VS Code, a diff's view model is computed
+  (`createViewModel`, `waitForDiff`) before it replaces what shows, and is scrolled and drawn
+  (`render(true)`) at once; the editor not shown stays laid out (transparent, behind, `inert`), and a
+  closed tab's models are disposed only once another tab shows.
+- Tabs, as VS Code's: preview tabs (italic) are replaced by the next file opened for a look and kept
+  once edited or double-clicked; a new tab opens right of the active one; closing one shows the most
+  recently active; ⌘W, middle click, and Close Others, to the Right, Saved and All. They reorder by
+  dragging within the strip and never leave it. A tab shows its folder too when another tab has the
+  same label. A change opens as a diff: an unstaged one the index
+  against the working tree (whose side is editable, and shares the file's model), a staged one HEAD
+  against the index, a commit's against its first parent; an added or deleted file as its one
+  version; an untracked or conflicted file as the file. Opening a change (from Source Control, the
+  graph or a blame) shows its diff at the first change, with the cursor there, also when its tab
+  was open; switching back to a tab finds it where it was left, and a closed tab forgets its place.
+- Gutter (VS Code's quick diff, `annotations.ts`, `changes.ts`): a file in the repository shown in
+  a file tab (not a diff, which shows the changes itself) marks how its text, unsaved edits included, differs from its version in the index
+  (so staging a change clears its mark): a green bar on added lines, a blue bar on modified ones, a
+  red triangle where lines were deleted, in VS Code's Dark Modern colors, and the same in the overview
+  ruler. A line diff (`diff`'s `diffLines`, trailing CRs and a missing last newline ignored) runs
+  100 ms after an edit; past 5000 changed lines nothing is marked. The index's text is read again
+  with every status the folder reports. A file the index does not have (untracked, ignored) is not
+  marked.
+- Blame (as GitLens's current line blame): the cursor's line ends with who last changed it, when
+  (relative: *just now*, *3 minutes ago*, *yesterday*) and the commit's subject; *You* for commits
+  whose author email is the repository's `user.email`, and *Uncommitted changes* for lines no commit
+  has. Every editor is blamed as what it shows: a file's text, unsaved edits included, or the
+  index's version as the file on top of HEAD (`git blame --porcelain --contents -`), and a
+  revision's version (HEAD's, a commit's, its parent's) as of that revision (`git blame <rev>`);
+  so file tabs, both sides of a diff and a commit's version of a file each have it. In a diff it
+  shows on the side the user works in, the right one until the left is clicked. Blame runs 500 ms
+  after an edit and when the file or HEAD changes; until then the annotation is hidden. Hovering it shows the author, the relative and full date, the whole commit message
+  (`git log -1 --format=%B`, read once per commit) and the short hash. A file HEAD does not have is
+  not blamed. The annotation itself is no link; in the hover, the short hash opens the file as its
+  commit changed it (the tab the graph opens for it, against the commit's first parent) and shows
+  the commit in Source Control's graph: the graph lists more history until it reaches the commit
+  (twice as much each time, at most 6400 commits), opens it and brings the file, highlighted, into
+  sight. For an uncommitted line *Open Changes* opens the file's unstaged changes, else its staged
+  ones, and shows them in Source Control. The links
+  run an editor command (`kumi.openBlamedChange`) that the hover's markdown is trusted to run, and
+  no other.
+- The side pane highlights the row whose tab shows, as VS Code does, and follows the tabs: the file
+  in the explorer (revealed), the change in Source Control and the file under its commit in the
+  graph whose diff it is, and the search result opened last while its file shows.
+- Saving: an unsaved file's tab shows a dot; ⌘S saves it (⌥⌘S all), asking first when the file
+  changed on disk since it was read. A file without unsaved changes follows the disk, by line edits,
+  so its cursor and scroll stay; one gone from disk is struck through. Closing an editor tab, or the
+  conversation's tab (its ×, a middle click, ⌘W), with unsaved files only it holds asks to save them.
+- File references in the transcript (`filerefs.ts`), as Claude Code writes them, open in the code
+  view: a markdown link whose href names a file (no scheme, `file:`, or a file name before a line,
+  `README.md:12`), and inline code naming a file the folder has (a path with an extension, maybe a
+  line: `src/foo.ts:42`; checked against quick open's file list, so ignored files are not linked).
+  A path is relative to the conversation's folder or absolute; `:line`, `:line:column`, `:line-line`
+  and `#L12C3` give the place. A click opens the file there in a preview tab, or shows a folder in
+  the explorer, opened.
+- Shortcuts while the conversation shows, in the capture phase: ⌘P, ⇧⌘P, ⇧⌘F, ⇧⌘E and ⌃⇧G, which
+  open the view; in the view, ⌘S, ⌥⌘S, ⌘W (the active editor's tab: a key the renderer handles never
+  reaches the menu's ⌘W), ⌘B (the side bar) and ⌃G.
+
 ## Browser
 
 - Each open conversation may have a browser: tabs the agent drives with the browser tools and
@@ -476,9 +621,12 @@ Review }, lastPicked?: { model?, effort?, permissionMode? } }`. Another version 
 
 ## Not yet
 
-Packaging (and with it a login-shell `PATH` for apps started from Finder), @-file mentions,
-rewind, diff and git panels, settings and MCP screens, worktrees,
-notifications, light theme, non-Anthropic models. For code review: relaying without a click per
-step, starting a reviewer from the implementer, and review rounds after the fixes. For the
-browser: tabs restored after a restart, iframes in `read_page`, file uploads and downloads. For
-the terminal: tabs restored after a restart, and terminal snippets attached to messages.
+Packaging (and with it a login-shell `PATH` for apps started from Finder), @-file mentions, rewind,
+settings and MCP screens, worktrees, notifications, light theme, non-Anthropic models. For code
+review: relaying without a click per step, starting a reviewer from the implementer, and review
+rounds after the fixes. For the browser: tabs restored after a restart, iframes in `read_page`, file
+uploads and downloads. For the terminal: tabs restored after a restart, and terminal snippets
+attached to messages. For the code view: staging or reverting selected lines, replace in files,
+language services (go to definition, IntelliSense, diagnostics), a merge editor, image diffs, the
+diff of a gutter mark in place, editor tabs restored after a restart, and saving before the window
+closes or the app quits.
